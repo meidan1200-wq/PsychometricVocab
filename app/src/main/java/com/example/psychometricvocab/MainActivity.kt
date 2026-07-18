@@ -26,7 +26,7 @@ class MainActivity : ComponentActivity() {
         }
 
         // Check for updates on startup
-        val updateManager = UpdateManager(this, "https://example.com/app-update.json")
+        val updateManager = UpdateManager(this, "https://raw.githubusercontent.com/meidan1200-wq/PsychometricVocab/master/update.json")
         updateManager.checkForUpdates()
     }
 }
