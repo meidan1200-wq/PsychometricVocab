@@ -35,6 +35,12 @@ interface WordDao {
     @Query("SELECT COUNT(*) FROM words WHERE track = :track AND unit = :unit AND isKnown = 1")
     fun getKnownCountByUnit(track: String, unit: Int): Flow<Int>
 
+    @Query("SELECT COUNT(*) FROM words WHERE track = :track AND wrongCount > 0")
+    fun getHardestWordsCount(track: String): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM words WHERE track = :track AND unit = :unit AND wrongCount > 0")
+    fun getHardestWordsCountByUnit(track: String, unit: Int): Flow<Int>
+
     @Query("SELECT * FROM words WHERE id = :id")
     suspend fun getWordById(id: Int): Word?
 
@@ -49,6 +55,9 @@ interface WordDao {
 
     @Query("SELECT * FROM words WHERE track = :track AND isKnown = 0 ORDER BY srsScore ASC LIMIT :limit")
     suspend fun getWordsToReview(track: String, limit: Int): List<Word>
+
+    @Query("SELECT * FROM words WHERE track = :track AND wrongCount > 0 ORDER BY srsScore ASC, nextReviewDate ASC LIMIT :limit")
+    suspend fun getHardestWordsForReview(track: String, limit: Int): List<Word>
 
     @Query("SELECT * FROM words WHERE track = :track ORDER BY nextReviewDate ASC LIMIT :limit")
     fun getUpcomingReviews(track: String, limit: Int): Flow<List<Word>>

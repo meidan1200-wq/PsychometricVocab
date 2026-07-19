@@ -35,6 +35,7 @@ import java.util.Locale
 fun QuizScreen(
     unit: Int?,
     unknownOnly: Boolean,
+    isReviewMode: Boolean = false,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     vm: QuizViewModel = viewModel()
@@ -49,20 +50,24 @@ fun QuizScreen(
     }
     DisposableEffect(Unit) { onDispose { tts.shutdown() } }
 
-    LaunchedEffect(appState.track, unit, unknownOnly) {
-        vm.resetQuiz(appState.track, unit, unknownOnly)
+    LaunchedEffect(appState.track, unit, unknownOnly, isReviewMode) {
+        vm.resetQuiz(appState.track, unit, unknownOnly, isReviewMode)
     }
 
     val title = buildString {
         append(if (isHebrew) "מבחן" else "Quiz")
         append(" - ")
-        append(
-            if (unit != null) {
-                if (isHebrew) "יחידה $unit" else "Unit $unit"
-            } else {
-                if (isHebrew) "כל היחידות" else "All Units"
-            }
-        )
+        if (isReviewMode) {
+            append(if (isHebrew) "מילים קשות" else "Hardest Words")
+        } else {
+            append(
+                if (unit != null) {
+                    if (isHebrew) "יחידה $unit" else "Unit $unit"
+                } else {
+                    if (isHebrew) "כל היחידות" else "All Units"
+                }
+            )
+        }
     }
 
     Scaffold(

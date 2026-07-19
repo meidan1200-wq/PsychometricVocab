@@ -27,13 +27,13 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                 repo.getTotalCount(track),
                 repo.getKnownCount(track),
                 repo.getAllUnits(track),
-                repo.getUpcomingReviews(track, 50)
-            ) { total, known, units, upcoming ->
+                repo.getHardestWordsCount(track)
+            ) { total, known, units, hardest ->
                 HomeUiState(
                     totalWords = total,
                     knownWords = known,
                     units = units,
-                    upcomingReviews = upcoming.size
+                    upcomingReviews = hardest
                 )
             }.collect { _uiState.value = it }
         }

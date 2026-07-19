@@ -50,10 +50,7 @@ private fun MainScaffold(appState: AppState) {
                 currentTab = currentTab,
                 onTabSelected = { tab ->
                     if (tab == 2) {
-                        // Center Home button pressed
-                        if (currentTab != 0 && currentTab != 1) {
-                            currentTab = 0 // Default to Learn tab
-                        }
+                        currentTab = 0
                     } else {
                         currentTab = tab
                     }
@@ -88,6 +85,7 @@ private fun MainScaffold(appState: AppState) {
                     QuizScreen(
                         unit = key.unit,
                         unknownOnly = key.unknownOnly,
+                        isReviewMode = key.isReviewMode,
                         onBack = { subScreen = null }
                     )
                 }
@@ -97,7 +95,8 @@ private fun MainScaffold(appState: AppState) {
                         HomeScreen(
                             onGoToFlashcard = { unit -> subScreen = FlashcardKey(unit) },
                             onGoToQuiz = { subScreen = QuizSettingsKey },
-                            onGoToProgress = { currentTab = 4 }
+                            onGoToProgress = { currentTab = 4 },
+                            onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) }
                         )
                     }
                     1 -> {
@@ -113,7 +112,8 @@ private fun MainScaffold(appState: AppState) {
                         HomeScreen(
                             onGoToFlashcard = { unit -> subScreen = FlashcardKey(unit) },
                             onGoToQuiz = { subScreen = QuizSettingsKey },
-                            onGoToProgress = { currentTab = 4 }
+                            onGoToProgress = { currentTab = 4 },
+                            onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) }
                         )
                     }
                     3 -> {
@@ -131,7 +131,8 @@ private fun MainScaffold(appState: AppState) {
                         HomeScreen(
                             onGoToFlashcard = { unit -> subScreen = FlashcardKey(unit) },
                             onGoToQuiz = { subScreen = QuizSettingsKey },
-                            onGoToProgress = { currentTab = 4 }
+                            onGoToProgress = { currentTab = 4 },
+                            onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) }
                         )
                     }
                 }

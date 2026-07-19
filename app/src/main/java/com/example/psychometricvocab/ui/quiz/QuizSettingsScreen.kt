@@ -41,11 +41,22 @@ fun QuizSettingsScreen(
     var selectedUnit by remember { mutableStateOf<Int?>(null) }
     var unknownOnly by remember { mutableStateOf(false) }
     var units by remember { mutableStateOf(listOf<Int>()) }
+    var hardestWordsCount by remember { mutableStateOf(0) }
 
     // Load units
     LaunchedEffect(appState.track) {
         val repo = VocabRepository(VocabDatabase.getInstance(context).wordDao())
         repo.getAllUnits(appState.track).collect { unitList -> units = unitList }
+    }
+
+    // Load hardest words count for selected unit
+    LaunchedEffect(appState.track, selectedUnit) {
+        val repo = VocabRepository(VocabDatabase.getInstance(context).wordDao())
+        if (selectedUnit == null) {
+            repo.getHardestWordsCount(appState.track).collect { count -> hardestWordsCount = count }
+        } else {
+            repo.getHardestWordsCountByUnit(appState.track, selectedUnit!!).collect { count -> hardestWordsCount = count }
+        }
     }
 
     Scaffold(
@@ -137,18 +148,29 @@ fun QuizSettingsScreen(
                     )
                     Spacer(Modifier.height(8.dp))
 
+                    val hasEnoughHardWords = hardestWordsCount >= 20
+                    if (!hasEnoughHardWords && unknownOnly) {
+                        unknownOnly = false
+                    }
+
                     FilterOptionRow(
                         label = if (isHebrew) "כל המילים" else "All words",
                         subtitle = if (isHebrew) "מבחן על כל המילים" else "Quiz on all words",
                         selected = !unknownOnly,
+                        enabled = true,
                         onClick = { unknownOnly = false }
                     )
                     HorizontalDivider(color = DividerGray)
                     FilterOptionRow(
                         label = if (isHebrew) "רק מילים שלא ידעתי" else "Words I missed",
-                        subtitle = if (isHebrew) "תרגול מילים קשות" else "Practice difficult words",
+                        subtitle = if (!hasEnoughHardWords) {
+                            if (isHebrew) "אין מספיק מילים קשות (צריך לפחות 20)" else "Not enough hard words (need 20+)"
+                        } else {
+                            if (isHebrew) "תרגול מילים קשות" else "Practice difficult words"
+                        },
                         selected = unknownOnly,
-                        onClick = { unknownOnly = true }
+                        enabled = hasEnoughHardWords,
+                        onClick = { if (hasEnoughHardWords) unknownOnly = true }
                     )
                 }
             }
@@ -187,22 +209,24 @@ private fun UnitOptionRow(label: String, selected: Boolean, onClick: () -> Unit)
 }
 
 @Composable
-private fun FilterOptionRow(label: String, subtitle: String, selected: Boolean, onClick: () -> Unit) {
+private fun FilterOptionRow(label: String, subtitle: String, selected: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
+    val alpha = if (enabled) 1f else 0.5f
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
-            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+            Text(label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, color = TextPrimary.copy(alpha = alpha))
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = TextSecondary.copy(alpha = alpha))
         }
         RadioButton(
             selected = selected,
-            onClick = onClick,
+            onClick = if (enabled) onClick else null,
+            enabled = enabled,
             colors = RadioButtonDefaults.colors(selectedColor = Yellow, unselectedColor = DividerGray)
         )
     }

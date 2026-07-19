@@ -14,50 +14,62 @@ object SrsEngine {
     private const val EASE_PENALTY_WRONG = 0.2f
     private const val MS_PER_DAY = 86_400_000L
 
-    fun processAnswer(word: Word, isCorrect: Boolean): Word {
+    fun processAnswer(word: Word, isCorrect: Boolean, isQuiz: Boolean = false): Word {
         val now = System.currentTimeMillis()
         return if (isCorrect) {
             val newEase = (word.easeFactor + EASE_BONUS_CORRECT).coerceAtMost(MAX_EASE_FACTOR)
             val newInterval = when {
-                word.interval <= 1 -> 1
+                word.interval == 0 -> 1
                 word.interval == 1 -> 6
                 else -> (word.interval * newEase).toInt().coerceAtLeast(1)
             }
-            val newScore = word.srsScore + 1f
+            val bump = if (isQuiz) 0.34f else 1.0f
+            val newScore = word.srsScore + bump
             word.copy(
                 easeFactor = newEase,
                 interval = newInterval,
                 nextReviewDate = now + newInterval * MS_PER_DAY,
                 correctCount = word.correctCount + 1,
                 srsScore = newScore,
-                isKnown = newScore >= 3f
+                isKnown = newScore >= 1f
             )
         } else {
             val newEase = (word.easeFactor - EASE_PENALTY_WRONG).coerceAtLeast(MIN_EASE_FACTOR)
-            val newScore = (word.srsScore - 0.5f).coerceAtLeast(0f)
+            val newScore = (word.srsScore - 0.33f).coerceAtLeast(0f)
             word.copy(
                 easeFactor = newEase,
                 interval = 1,
                 nextReviewDate = now + MS_PER_DAY,
                 wrongCount = word.wrongCount + 1,
                 srsScore = newScore,
-                isKnown = false
+                isKnown = newScore >= 1f
             )
         }
     }
 
-    /** Returns words weighted by SRS priority — unknown words appear more often */
+    /** Returns words weighted by SRS priority and mistake history */
     fun selectWordsForSession(words: List<Word>, count: Int): List<Word> {
         if (words.isEmpty()) return emptyList()
         val weighted = mutableListOf<Word>()
         words.forEach { word ->
-            val weight = when {
+            var weight = when {
                 word.isKnown -> 1
                 word.srsScore < 1f -> 5
                 word.srsScore < 2f -> 4
                 word.srsScore < 3f -> 3
                 else -> 2
             }
+            
+            // Add massive weight for words the user gets wrong frequently
+            val totalAttempts = word.correctCount + word.wrongCount
+            if (totalAttempts > 0) {
+                val mistakeRatio = word.wrongCount.toFloat() / totalAttempts.toFloat()
+                weight += (mistakeRatio * 10).toInt()
+            } else if (word.srsScore == 0f) {
+                // Completely new words get a small boost to introduce them
+                weight += 2
+            }
+            
             repeat(weight) { weighted.add(word) }
         }
         weighted.shuffle()

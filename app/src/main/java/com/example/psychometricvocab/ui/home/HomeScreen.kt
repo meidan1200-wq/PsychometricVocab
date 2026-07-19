@@ -34,6 +34,7 @@ fun HomeScreen(
     onGoToFlashcard: (Int?) -> Unit,
     onGoToQuiz: () -> Unit,
     onGoToProgress: () -> Unit,
+    onGoToReview: () -> Unit,
     modifier: Modifier = Modifier,
     vm: HomeViewModel = viewModel()
 ) {
@@ -58,9 +59,9 @@ fun HomeScreen(
                 .background(
                     Brush.verticalGradient(listOf(Yellow.copy(alpha = 0.15f), OffWhite))
                 )
-                .padding(horizontal = 20.dp, vertical = 24.dp)
+                .padding(top = 48.dp, bottom = 24.dp)
         ) {
-            Column {
+            Column(modifier = Modifier.padding(horizontal = 24.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -68,15 +69,16 @@ fun HomeScreen(
                 ) {
                     Column {
                         Text(
-                            text = if (isHebrew) "שלום 👋" else "Hello 👋",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = TextSecondary
-                        )
-                        Text(
-                            text = if (isHebrew) "מוכן ללמוד?" else "Ready to learn?",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.ExtraBold,
+                            text = if (isHebrew) "ברוך שובך! 👋" else "Welcome back! 👋",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
                             color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (isHebrew) "מוכן ללמוד מילים חדשות?" else "Ready to learn new words?",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextSecondary
                         )
                     }
                     LanguageToggle()
@@ -108,7 +110,8 @@ fun HomeScreen(
                         value = state.upcomingReviews.toString(),
                         label = if (isHebrew) "לחזרה" else "To review",
                         color = WrongRed,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        onClick = onGoToReview
                     )
                 }
             }
@@ -134,14 +137,19 @@ fun HomeScreen(
                     )
                 }
                 items(state.units) { unit ->
+                    val colors = listOf(
+                        Color(0xFF6C63FF), // Purple
+                        Color(0xFF00BCD4), // Teal
+                        Color(0xFFFF7043), // Orange
+                        Color(0xFF8BC34A), // Light Green
+                        Color(0xFFE91E63), // Pink
+                        Color(0xFF3F51B5), // Indigo
+                        Color(0xFF009688)  // Dark Teal
+                    )
                     UnitCard(
                         title = if (isHebrew) "יחידה $unit" else "Unit $unit",
                         subtitle = if (isHebrew) "לחץ להתחיל" else "Tap to start",
-                        color = listOf(
-                            Color(0xFF6C63FF),
-                            Color(0xFF00BCD4),
-                            Color(0xFFFF7043)
-                        ).getOrElse(unit - 1) { Yellow },
+                        color = colors[(unit - 1) % colors.size],
                         onClick = { onGoToFlashcard(unit) }
                     )
                 }
@@ -200,10 +208,16 @@ private fun StatCard(
     value: String,
     label: String,
     color: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
+    val cardModifier = if (onClick != null) {
+        modifier.shadow(2.dp, RoundedCornerShape(16.dp)).clickable(onClick = onClick)
+    } else {
+        modifier.shadow(2.dp, RoundedCornerShape(16.dp))
+    }
     Card(
-        modifier = modifier.shadow(2.dp, RoundedCornerShape(16.dp)),
+        modifier = cardModifier,
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = White)
     ) {

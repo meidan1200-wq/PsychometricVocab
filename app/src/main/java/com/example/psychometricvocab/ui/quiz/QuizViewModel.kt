@@ -40,21 +40,31 @@ class QuizViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow(QuizUiState())
     val state: StateFlow<QuizUiState> = _state.asStateFlow()
 
-    fun resetQuiz(track: String, unit: Int?, unknownOnly: Boolean) {
+    fun resetQuiz(track: String, unit: Int?, unknownOnly: Boolean, isReviewMode: Boolean = false) {
         _state.update { QuizUiState(currentTrack = track, currentUnit = unit, isLoading = true) }
-        loadQuiz(track, unit, unknownOnly)
+        loadQuiz(track, unit, unknownOnly, isReviewMode)
     }
 
-    fun loadQuiz(track: String, unit: Int?, unknownOnly: Boolean) {
+    fun loadQuiz(track: String, unit: Int?, unknownOnly: Boolean, isReviewMode: Boolean = false) {
         viewModelScope.launch {
-            repo.getWordsForSession(track, unit).collect { allWords ->
-                if (_state.value.questions.isEmpty() && allWords.isNotEmpty()) {
-                    val pool = if (unknownOnly) allWords.filter { !it.isKnown } else allWords
-                    val sessionWords = SrsEngine.selectWordsForSession(pool.ifEmpty { allWords }, 20)
-                    val questions = sessionWords.map { word ->
-                        buildQuestion(word, allWords, track)
+            if (isReviewMode) {
+                val hardest = repo.getHardestWordsForReview(track, 20)
+                repo.getWordsForSession(track, null).collect { allWords ->
+                    if (_state.value.questions.isEmpty() && allWords.isNotEmpty()) {
+                        val questions = hardest.map { word -> buildQuestion(word, allWords, track) }
+                        _state.update { it.copy(questions = questions, isLoading = false) }
                     }
-                    _state.update { it.copy(questions = questions, isLoading = false) }
+                }
+            } else {
+                repo.getWordsForSession(track, unit).collect { allWords ->
+                    if (_state.value.questions.isEmpty() && allWords.isNotEmpty()) {
+                        val pool = if (unknownOnly) allWords.filter { !it.isKnown } else allWords
+                        val sessionWords = SrsEngine.selectWordsForSession(pool.ifEmpty { allWords }, 20)
+                        val questions = sessionWords.map { word ->
+                            buildQuestion(word, allWords, track)
+                        }
+                        _state.update { it.copy(questions = questions, isLoading = false) }
+                    }
                 }
             }
         }
@@ -79,7 +89,7 @@ class QuizViewModel(app: Application) : AndroidViewModel(app) {
         val current = _state.value.currentQuestion ?: return
         if (current.answered) return
         viewModelScope.launch {
-            repo.processAnswer(current.word, isCorrect)
+            repo.processAnswer(current.word, isCorrect, isQuiz = true)
         }
         _state.update { s ->
             val updated = s.questions.toMutableList()
