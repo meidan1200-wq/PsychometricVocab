@@ -89,7 +89,7 @@ class QuizViewModel(app: Application) : AndroidViewModel(app) {
         val current = _state.value.currentQuestion ?: return
         if (current.answered) return
         viewModelScope.launch {
-            repo.processAnswer(current.word, isCorrect, isQuiz = true)
+            repo.processAnswer(current.word, isCorrect, isQuiz = true, isNotSure = (optionId == -1))
         }
         _state.update { s ->
             val updated = s.questions.toMutableList()

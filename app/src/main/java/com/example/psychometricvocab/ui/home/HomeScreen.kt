@@ -33,7 +33,7 @@ import com.example.psychometricvocab.ui.components.YellowButton
 fun HomeScreen(
     onGoToFlashcard: (Int?) -> Unit,
     onGoToQuiz: () -> Unit,
-    onGoToProgress: () -> Unit,
+    onGoToProgress: (Int?) -> Unit,
     onGoToReview: () -> Unit,
     modifier: Modifier = Modifier,
     vm: HomeViewModel = viewModel()
@@ -96,7 +96,8 @@ fun HomeScreen(
                         value = state.knownWords.toString(),
                         label = if (isHebrew) "ידועות" else "Known",
                         color = CorrectGreen,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        onClick = { onGoToProgress(-1) }
                     )
                     StatCard(
                         icon = Icons.Filled.LibraryBooks,
@@ -183,7 +184,7 @@ fun HomeScreen(
                 title = if (isHebrew) "התקדמות שלי" else "My Progress",
                 subtitle = if (isHebrew) "ראה כמה למדת" else "See how far you've come",
                 color = CorrectGreen,
-                onClick = onGoToProgress
+                onClick = { onGoToProgress(null) }
             )
         }
 

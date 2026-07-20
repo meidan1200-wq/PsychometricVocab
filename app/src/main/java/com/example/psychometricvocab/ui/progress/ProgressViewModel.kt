@@ -33,7 +33,11 @@ class ProgressViewModel(app: Application) : AndroidViewModel(app) {
                 repo.getUpcomingReviews(track, 30),
                 repo.getAllWords(track)
             ) { total, known, unknown, upcoming, allWords ->
-                val wordsByUnit = allWords.groupBy { it.unit }
+                val wordsByUnit = allWords.groupBy { it.unit }.toMutableMap()
+                val allKnownWords = allWords.filter { it.isKnown }
+                if (allKnownWords.isNotEmpty()) {
+                    wordsByUnit[-1] = allKnownWords
+                }
                 val unitStats = wordsByUnit.mapValues { (_, words) ->
                     words.count { it.isKnown } to words.size
                 }

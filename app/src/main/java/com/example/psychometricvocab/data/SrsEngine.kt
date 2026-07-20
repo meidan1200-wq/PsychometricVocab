@@ -14,7 +14,7 @@ object SrsEngine {
     private const val EASE_PENALTY_WRONG = 0.2f
     private const val MS_PER_DAY = 86_400_000L
 
-    fun processAnswer(word: Word, isCorrect: Boolean, isQuiz: Boolean = false): Word {
+    fun processAnswer(word: Word, isCorrect: Boolean, isQuiz: Boolean = false, isNotSure: Boolean = false): Word {
         val now = System.currentTimeMillis()
         return if (isCorrect) {
             val newEase = (word.easeFactor + EASE_BONUS_CORRECT).coerceAtMost(MAX_EASE_FACTOR)
@@ -35,14 +35,15 @@ object SrsEngine {
             )
         } else {
             val newEase = (word.easeFactor - EASE_PENALTY_WRONG).coerceAtLeast(MIN_EASE_FACTOR)
-            val newScore = (word.srsScore - 0.33f).coerceAtLeast(0f)
+            val newScore = if (isNotSure) 0f else (word.srsScore - 0.33f).coerceAtLeast(0f)
             word.copy(
                 easeFactor = newEase,
                 interval = 1,
                 nextReviewDate = now + MS_PER_DAY,
                 wrongCount = word.wrongCount + 1,
                 srsScore = newScore,
-                isKnown = newScore >= 1f
+                // Strip 'isKnown' status if they explicitly pressed "Not sure", or if it's a flashcard failure
+                isKnown = if (isNotSure) false else if (isQuiz) word.isKnown else false
             )
         }
     }

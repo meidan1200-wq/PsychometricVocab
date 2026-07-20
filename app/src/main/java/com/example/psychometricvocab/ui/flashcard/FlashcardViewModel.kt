@@ -29,14 +29,27 @@ class FlashcardViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow(FlashcardUiState())
     val state: StateFlow<FlashcardUiState> = _state.asStateFlow()
 
-    fun loadWords(track: String, unit: Int?, showAll: Boolean) {
+    fun loadWords(track: String, unit: Int?, mode: String) {
         viewModelScope.launch {
-            repo.getWordsForSession(track, unit).collect { allWords ->
-                if (_state.value.words.isEmpty()) {
-                    val sessionWords = if (showAll) allWords
-                    else SrsEngine.selectWordsForSession(allWords, minOf(allWords.size, 20))
-                    _state.update { it.copy(words = sessionWords, currentIndex = 0) }
+            if (_state.value.words.isEmpty()) {
+                val wordsList = if (mode == "sort") {
+                    val allUntouched = if (unit == null) {
+                        repo.getAllUntouchedWords(track).first()
+                    } else {
+                        repo.getUntouchedWordsByUnit(track, unit).first()
+                    }
+                    allUntouched.take(20) // Limit sort sessions to 20 words at a time
+                } else if (mode == "memorize") {
+                    val hardWords = repo.getHardestWordsForReview(track, limit = 50)
+                    val filtered = if (unit != null) hardWords.filter { it.unit == unit } else hardWords
+                    filtered.take(5) // Limit memorize sessions to 5 words
+                } else {
+                    val fallback = if (unit == null) repo.getAllUntouchedWords(track).first() 
+                                   else repo.getUntouchedWordsByUnit(track, unit).first()
+                    fallback.take(20)
                 }
+                
+                _state.update { it.copy(words = wordsList, currentIndex = 0) }
             }
         }
     }
@@ -61,8 +74,8 @@ class FlashcardViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun resetSession(track: String, unit: Int?, showAll: Boolean) {
+    fun resetSession(track: String, unit: Int?, mode: String) {
         _state.update { FlashcardUiState() }
-        loadWords(track, unit, showAll)
+        loadWords(track, unit, mode)
     }
 }

@@ -15,12 +15,15 @@ class VocabRepository(private val dao: WordDao) {
     fun getKnownCountByUnit(track: String, unit: Int): Flow<Int> = dao.getKnownCountByUnit(track, unit)
     fun getHardestWordsCount(track: String): Flow<Int> = dao.getHardestWordsCount(track)
     fun getHardestWordsCountByUnit(track: String, unit: Int): Flow<Int> = dao.getHardestWordsCountByUnit(track, unit)
+    fun getUntouchedWordsByUnit(track: String, unit: Int): Flow<List<Word>> = dao.getUntouchedWordsByUnit(track, unit)
+    fun getAllUntouchedWords(track: String): Flow<List<Word>> = dao.getAllUntouchedWords(track)
+    fun getUntouchedCountByUnit(track: String, unit: Int): Flow<Int> = dao.getUntouchedCountByUnit(track, unit)
 
     fun getWordsForSession(track: String, unit: Int?): Flow<List<Word>> =
         if (unit == null) dao.getAllWordsForReview(track) else dao.getWordsForReview(track, unit)
 
-    suspend fun processAnswer(word: Word, isCorrect: Boolean, isQuiz: Boolean = false) {
-        val updated = SrsEngine.processAnswer(word, isCorrect, isQuiz)
+    suspend fun processAnswer(word: Word, isCorrect: Boolean, isQuiz: Boolean = false, isNotSure: Boolean = false) {
+        val updated = SrsEngine.processAnswer(word, isCorrect, isQuiz, isNotSure)
         dao.updateWord(updated)
     }
 

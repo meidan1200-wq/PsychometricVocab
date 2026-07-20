@@ -11,6 +11,9 @@ interface WordDao {
     @Query("SELECT * FROM words WHERE track = :track AND unit = :unit ORDER BY id ASC")
     fun getWordsByUnit(track: String, unit: Int): Flow<List<Word>>
 
+    @Query("SELECT * FROM words WHERE track = :track AND isKnown = 1 ORDER BY unit ASC, id ASC")
+    fun getAllKnownWords(track: String): Flow<List<Word>>
+
     @Query("SELECT * FROM words WHERE track = :track AND unit = :unit ORDER BY srsScore ASC, nextReviewDate ASC")
     fun getWordsForReview(track: String, unit: Int): Flow<List<Word>>
 
@@ -35,10 +38,10 @@ interface WordDao {
     @Query("SELECT COUNT(*) FROM words WHERE track = :track AND unit = :unit AND isKnown = 1")
     fun getKnownCountByUnit(track: String, unit: Int): Flow<Int>
 
-    @Query("SELECT COUNT(*) FROM words WHERE track = :track AND wrongCount > 0")
+    @Query("SELECT COUNT(*) FROM words WHERE track = :track AND wrongCount > 0 AND isKnown = 0")
     fun getHardestWordsCount(track: String): Flow<Int>
 
-    @Query("SELECT COUNT(*) FROM words WHERE track = :track AND unit = :unit AND wrongCount > 0")
+    @Query("SELECT COUNT(*) FROM words WHERE track = :track AND unit = :unit AND wrongCount > 0 AND isKnown = 0")
     fun getHardestWordsCountByUnit(track: String, unit: Int): Flow<Int>
 
     @Query("SELECT * FROM words WHERE id = :id")
@@ -56,9 +59,18 @@ interface WordDao {
     @Query("SELECT * FROM words WHERE track = :track AND isKnown = 0 ORDER BY srsScore ASC LIMIT :limit")
     suspend fun getWordsToReview(track: String, limit: Int): List<Word>
 
-    @Query("SELECT * FROM words WHERE track = :track AND wrongCount > 0 ORDER BY srsScore ASC, nextReviewDate ASC LIMIT :limit")
+    @Query("SELECT * FROM words WHERE track = :track AND wrongCount > 0 AND isKnown = 0 ORDER BY srsScore ASC, nextReviewDate ASC LIMIT :limit")
     suspend fun getHardestWordsForReview(track: String, limit: Int): List<Word>
 
-    @Query("SELECT * FROM words WHERE track = :track ORDER BY nextReviewDate ASC LIMIT :limit")
+    @Query("SELECT * FROM words WHERE track = :track AND isKnown = 0 ORDER BY nextReviewDate ASC LIMIT :limit")
     fun getUpcomingReviews(track: String, limit: Int): Flow<List<Word>>
+
+    @Query("SELECT * FROM words WHERE track = :track AND unit = :unit AND isKnown = 0 AND wrongCount = 0 AND correctCount = 0 ORDER BY id ASC")
+    fun getUntouchedWordsByUnit(track: String, unit: Int): Flow<List<Word>>
+
+    @Query("SELECT * FROM words WHERE track = :track AND isKnown = 0 AND wrongCount = 0 AND correctCount = 0 ORDER BY id ASC")
+    fun getAllUntouchedWords(track: String): Flow<List<Word>>
+
+    @Query("SELECT COUNT(*) FROM words WHERE track = :track AND unit = :unit AND isKnown = 0 AND wrongCount = 0 AND correctCount = 0")
+    fun getUntouchedCountByUnit(track: String, unit: Int): Flow<Int>
 }

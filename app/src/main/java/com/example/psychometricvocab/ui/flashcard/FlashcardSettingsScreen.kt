@@ -20,7 +20,7 @@ import com.example.psychometricvocab.ui.components.YellowButton
 
 @Composable
 fun FlashcardSettingsScreen(
-    onStartFlashcards: (unit: Int?, showAll: Boolean) -> Unit,
+    onStartFlashcards: (unit: Int?, mode: String) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -29,13 +29,34 @@ fun FlashcardSettingsScreen(
     val context = LocalContext.current
 
     var selectedUnit by remember { mutableStateOf<Int?>(null) }
-    var showAll by remember { mutableStateOf(false) }
+    var flashcardMode by remember { mutableStateOf("sort") } // "sort" or "memorize"
     var units by remember { mutableStateOf(listOf<Int>()) }
 
-    // Load units
-    LaunchedEffect(appState.track) {
+    var untouchedCount by remember { mutableStateOf(0) }
+    var hardCount by remember { mutableStateOf(0) }
+
+    // Load units and counts
+    LaunchedEffect(appState.track, selectedUnit) {
         val repo = VocabRepository(VocabDatabase.getInstance(context).wordDao())
         repo.getAllUnits(appState.track).collect { unitList -> units = unitList }
+    }
+
+    LaunchedEffect(appState.track, selectedUnit) {
+        val repo = VocabRepository(VocabDatabase.getInstance(context).wordDao())
+        if (selectedUnit == null) {
+            repo.getAllUntouchedWords(appState.track).collect { untouchedCount = it.size }
+        } else {
+            repo.getUntouchedCountByUnit(appState.track, selectedUnit!!).collect { untouchedCount = it }
+        }
+    }
+
+    LaunchedEffect(appState.track, selectedUnit) {
+        val repo = VocabRepository(VocabDatabase.getInstance(context).wordDao())
+        if (selectedUnit == null) {
+            repo.getHardestWordsCount(appState.track).collect { hardCount = it }
+        } else {
+            repo.getHardestWordsCountByUnit(appState.track, selectedUnit!!).collect { hardCount = it }
+        }
     }
 
     Scaffold(
@@ -121,24 +142,26 @@ fun FlashcardSettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = if (isHebrew) "כמות מילים" else "Session Size",
+                        text = if (isHebrew) "מצב למידה" else "Study Mode",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(8.dp))
 
                     FilterOptionRow(
-                        label = if (isHebrew) "חזרה מהירה (20 מילים)" else "Quick Review (20 words)",
-                        subtitle = if (isHebrew) "חזרה ממוקדת על מילים שצריך לשפר" else "Focused review on words you need to improve",
-                        selected = !showAll,
-                        onClick = { showAll = false }
+                        label = if (isHebrew) "מיון מילים חדשות ($untouchedCount)" else "Sort New Words ($untouchedCount)",
+                        subtitle = if (isHebrew) "מיין מילים שעוד לא נחשפת אליהן" else "Sort words you haven't seen yet",
+                        selected = flashcardMode == "sort",
+                        enabled = untouchedCount > 0,
+                        onClick = { if (untouchedCount > 0) flashcardMode = "sort" }
                     )
                     HorizontalDivider(color = DividerGray)
                     FilterOptionRow(
-                        label = if (isHebrew) "כל המילים ביחידה" else "All words in unit",
-                        subtitle = if (isHebrew) "ללמוד את כל המילים ביחידה שנבחרה" else "Study all words in the selected unit",
-                        selected = showAll,
-                        onClick = { showAll = true }
+                        label = if (isHebrew) "שינון מילים קשות ($hardCount)" else "Memorize Hard Words ($hardCount)",
+                        subtitle = if (isHebrew) "משחק שינון למילים שהתקשית בהן" else "Memorization game for words you struggled with",
+                        selected = flashcardMode == "memorize",
+                        enabled = hardCount > 0,
+                        onClick = { if (hardCount > 0) flashcardMode = "memorize" }
                     )
                 }
             }
@@ -148,7 +171,8 @@ fun FlashcardSettingsScreen(
             // Start button
             YellowButton(
                 text = if (isHebrew) "התחל ללמוד!" else "Start Learning!",
-                onClick = { onStartFlashcards(selectedUnit, showAll) },
+                onClick = { onStartFlashcards(selectedUnit, flashcardMode) },
+                enabled = (flashcardMode == "sort" && untouchedCount > 0) || (flashcardMode == "memorize" && hardCount > 0),
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -177,21 +201,22 @@ private fun UnitOptionRow(label: String, selected: Boolean, onClick: () -> Unit)
 }
 
 @Composable
-private fun FilterOptionRow(label: String, subtitle: String, selected: Boolean, onClick: () -> Unit) {
+private fun FilterOptionRow(label: String, subtitle: String, selected: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
-            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+            Text(label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, color = if (enabled) TextPrimary else TextHint)
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = if (enabled) TextSecondary else TextHint)
         }
         RadioButton(
             selected = selected,
+            enabled = enabled,
             onClick = onClick,
             colors = RadioButtonDefaults.colors(selectedColor = Yellow, unselectedColor = DividerGray)
         )

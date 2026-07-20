@@ -18,4 +18,7 @@ data class Word(
     val correctCount: Int = 0,
     val wrongCount: Int = 0,
     val isKnown: Boolean = false
-)
+) {
+    val cleanWord: String get() = android.text.Html.fromHtml(word, android.text.Html.FROM_HTML_MODE_LEGACY).toString()
+    val cleanDefinition: String get() = android.text.Html.fromHtml(definition, android.text.Html.FROM_HTML_MODE_LEGACY).toString()
+}

@@ -43,6 +43,7 @@ private fun MainScaffold(appState: AppState) {
     // Simple screen stack per tab
     // null = tab root; non-null = sub-screen
     var subScreen by remember { mutableStateOf<Any?>(null) }
+    var progressExpandUnit by remember { mutableStateOf<Int?>(null) }
 
     Scaffold(
         bottomBar = {
@@ -66,7 +67,7 @@ private fun MainScaffold(appState: AppState) {
                     val key = subScreen as FlashcardKey
                     FlashcardScreen(
                         unit = key.unit,
-                        showAll = key.showAll,
+                        mode = key.mode,
                         onBack = { subScreen = null }
                     )
                 }
@@ -95,15 +96,18 @@ private fun MainScaffold(appState: AppState) {
                         HomeScreen(
                             onGoToFlashcard = { unit -> subScreen = FlashcardKey(unit) },
                             onGoToQuiz = { subScreen = QuizSettingsKey },
-                            onGoToProgress = { currentTab = 4 },
+                            onGoToProgress = { unit -> 
+                                progressExpandUnit = unit
+                                currentTab = 4 
+                            },
                             onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) }
                         )
                     }
                     1 -> {
                         // "Cards" tab shows Flashcard Settings to pick language/unit
                         com.example.psychometricvocab.ui.flashcard.FlashcardSettingsScreen(
-                            onStartFlashcards = { unit, showAll ->
-                                subScreen = FlashcardKey(unit, showAll)
+                            onStartFlashcards = { unit, mode ->
+                                subScreen = FlashcardKey(unit, mode)
                             },
                             onBack = { currentTab = 0 }
                         )
@@ -112,7 +116,10 @@ private fun MainScaffold(appState: AppState) {
                         HomeScreen(
                             onGoToFlashcard = { unit -> subScreen = FlashcardKey(unit) },
                             onGoToQuiz = { subScreen = QuizSettingsKey },
-                            onGoToProgress = { currentTab = 4 },
+                            onGoToProgress = { unit -> 
+                                progressExpandUnit = unit
+                                currentTab = 4 
+                            },
                             onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) }
                         )
                     }
@@ -125,13 +132,16 @@ private fun MainScaffold(appState: AppState) {
                         )
                     }
                     4 -> {
-                        ProgressScreen()
+                        ProgressScreen(autoExpandUnit = progressExpandUnit)
                     }
                     else -> {
                         HomeScreen(
                             onGoToFlashcard = { unit -> subScreen = FlashcardKey(unit) },
                             onGoToQuiz = { subScreen = QuizSettingsKey },
-                            onGoToProgress = { currentTab = 4 },
+                            onGoToProgress = { unit -> 
+                                progressExpandUnit = unit
+                                currentTab = 4 
+                            },
                             onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) }
                         )
                     }

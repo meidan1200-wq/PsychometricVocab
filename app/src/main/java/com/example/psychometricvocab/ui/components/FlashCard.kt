@@ -108,8 +108,8 @@ fun SwipeableFlashCard(
     val knowAlpha = rightAlpha
     val unknownAlpha = leftAlpha
 
-    val frontWord = word.word
-    val backWord = word.definition
+    val frontWord = word.cleanWord
+    val backWord = word.cleanDefinition
 
     CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr) {
         Box(

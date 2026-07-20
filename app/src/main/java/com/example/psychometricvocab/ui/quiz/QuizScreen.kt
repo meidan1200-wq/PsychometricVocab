@@ -134,7 +134,7 @@ fun QuizScreen(
                                             modifier = Modifier.padding(28.dp),
                                             horizontalAlignment = Alignment.CenterHorizontally
                                         ) {
-                                            val displayWord = q.word.word
+                                            val displayWord = q.word.cleanWord
                                             Box(
                                                 modifier = Modifier
                                                     .size(40.dp)
@@ -224,7 +224,7 @@ fun QuizScreen(
                                                         )
                                                     )
                                                     Text(
-                                                        text = quizOpt.text,
+                                                        text = android.text.Html.fromHtml(quizOpt.text, android.text.Html.FROM_HTML_MODE_LEGACY).toString(),
                                                         style = MaterialTheme.typography.bodyLarge,
                                                         fontWeight = if (optIsSelected) FontWeight.Bold else FontWeight.Normal,
                                                         color = TextPrimary

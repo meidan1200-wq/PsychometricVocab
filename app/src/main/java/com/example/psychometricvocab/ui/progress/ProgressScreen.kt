@@ -33,6 +33,7 @@ import com.example.psychometricvocab.ui.components.VocabTopBar
 
 @Composable
 fun ProgressScreen(
+    autoExpandUnit: Int? = null,
     onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     vm: ProgressViewModel = viewModel()
@@ -59,6 +60,8 @@ fun ProgressScreen(
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            var expandedUnit by mutableStateOf<Int?>(autoExpandUnit)
+            
             // ── Circular Progress ──────────────────────────────────────────
             item {
                 Card(
@@ -150,7 +153,7 @@ fun ProgressScreen(
                     )
                 }
                 items(state.unitStats.entries.sortedBy { it.key }) { (unit, stats) ->
-                    var expanded by remember { mutableStateOf(false) }
+                    val expanded = expandedUnit == unit
                     val (known, total) = stats
                     val pct = if (total > 0) known.toFloat() / total else 0f
                     Card(
@@ -158,7 +161,7 @@ fun ProgressScreen(
                         colors = CardDefaults.cardColors(containerColor = White),
                         modifier = Modifier.fillMaxWidth()
                             .shadow(2.dp, RoundedCornerShape(16.dp))
-                            .clickable { expanded = !expanded }
+                            .clickable { expandedUnit = if (expanded) null else unit }
                     ) {
                         Column {
                             Row(
@@ -170,28 +173,44 @@ fun ProgressScreen(
                                     modifier = Modifier
                                         .size(44.dp)
                                         .clip(RoundedCornerShape(12.dp))
-                                        .background(Yellow.copy(alpha = 0.2f)),
+                                        .background(if (unit == -1) CorrectGreenLight else Yellow.copy(alpha = 0.2f)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(
-                                        unit.toString(),
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 18.sp,
-                                        color = YellowDark
-                                    )
+                                    if (unit == -1) {
+                                        Icon(Icons.Filled.Check, contentDescription = null, tint = CorrectGreen)
+                                    } else {
+                                        Text(
+                                            unit.toString(),
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 18.sp,
+                                            color = YellowDark
+                                        )
+                                    }
                                 }
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = if (isHebrew) "יחידה $unit" else "Unit $unit",
+                                        text = if (unit == -1) {
+                                            if (isHebrew) "כל המילים הידועות" else "All Known Words"
+                                        } else {
+                                            if (isHebrew) "יחידה $unit" else "Unit $unit"
+                                        },
                                         fontWeight = FontWeight.Bold
                                     )
                                     Spacer(Modifier.height(4.dp))
-                                    LinearProgressIndicator(
-                                        progress = { pct },
-                                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
-                                        color = Yellow,
-                                        trackColor = SurfaceGray
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(6.dp)
+                                            .clip(RoundedCornerShape(3.dp))
+                                            .background(SurfaceGray)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth(pct.coerceIn(0f, 1f))
+                                                .fillMaxHeight()
+                                                .background(Yellow)
+                                        )
+                                    }
                                     Spacer(Modifier.height(4.dp))
                                     Text(
                                         "$known / $total ${if (isHebrew) "מילים" else "words"}",
@@ -223,8 +242,22 @@ fun ProgressScreen(
                                         .padding(horizontal = 16.dp, vertical = 8.dp),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    state.wordsByUnit[unit]?.forEach { word ->
+                                    var visibleCount by remember { mutableIntStateOf(20) }
+                                    val wordsList = state.wordsByUnit[unit] ?: emptyList()
+                                    wordsList.take(visibleCount).forEach { word ->
                                         ReviewWordRow(word = word, isHebrew = isHebrew, backgroundColor = OffWhite)
+                                    }
+                                    if (wordsList.size > visibleCount) {
+                                        TextButton(
+                                            onClick = { visibleCount += 20 },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = if (isHebrew) "טען עוד" else "Load More",
+                                                color = YellowDark,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
                                     }
                                     Spacer(Modifier.height(8.dp))
                                 }
@@ -275,9 +308,9 @@ private fun ReviewWordRow(word: Word, isHebrew: Boolean, backgroundColor: Color 
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
-                Text(word.word, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
+                Text(word.cleanWord, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(word.definition, style = MaterialTheme.typography.bodyLarge, color = TextSecondary)
+                Text(word.cleanDefinition, style = MaterialTheme.typography.bodyLarge, color = TextSecondary)
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
