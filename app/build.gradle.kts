@@ -95,4 +95,8 @@ dependencies {
 
   // Coroutines
   implementation(libs.kotlinx.coroutines.android)
+
+  // Crypto and Image Loading
+  implementation("androidx.security:security-crypto:1.1.0-alpha06")
+  implementation("io.coil-kt:coil-compose:2.6.0")
 }

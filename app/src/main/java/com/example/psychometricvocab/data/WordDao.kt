@@ -71,6 +71,9 @@ interface WordDao {
     @Query("SELECT * FROM words WHERE track = :track AND isKnown = 0 AND wrongCount = 0 AND correctCount = 0 ORDER BY id ASC")
     fun getAllUntouchedWords(track: String): Flow<List<Word>>
 
+    @Query("SELECT COUNT(*) FROM words WHERE track = :track AND isKnown = 0 AND wrongCount = 0 AND correctCount = 0")
+    fun getAllUntouchedCount(track: String): Flow<Int>
+
     @Query("SELECT COUNT(*) FROM words WHERE track = :track AND unit = :unit AND isKnown = 0 AND wrongCount = 0 AND correctCount = 0")
     fun getUntouchedCountByUnit(track: String, unit: Int): Flow<Int>
 }

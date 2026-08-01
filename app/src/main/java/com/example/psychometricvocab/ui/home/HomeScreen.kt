@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -35,12 +36,15 @@ fun HomeScreen(
     onGoToQuiz: () -> Unit,
     onGoToProgress: (Int?) -> Unit,
     onGoToReview: () -> Unit,
+    onAvatarClick: () -> Unit,
     modifier: Modifier = Modifier,
-    vm: HomeViewModel = viewModel()
+    vm: HomeViewModel = viewModel(),
+    accountVm: com.example.psychometricvocab.ui.account.AccountViewModel = viewModel()
 ) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     val appState = LocalAppState.current
     val isHebrew = appState.isHebrew
+    val profile by accountVm.profile.collectAsStateWithLifecycle()
 
     LaunchedEffect(appState.track) {
         vm.loadData(appState.track)
@@ -59,13 +63,38 @@ fun HomeScreen(
                 .background(
                     Brush.verticalGradient(listOf(Yellow.copy(alpha = 0.15f), OffWhite))
                 )
-                .padding(top = 48.dp, bottom = 24.dp)
+                .padding(bottom = 24.dp)
         ) {
-            Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+            // Profile Avatar at the top corner (above the welcome text)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 24.dp, top = 24.dp)
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Yellow)
+                    .clickable { onAvatarClick() },
+                contentAlignment = Alignment.Center
+            ) {
+                if (profile.profileImageUri.isNotEmpty()) {
+                    coil.compose.AsyncImage(
+                        model = android.net.Uri.parse(profile.profileImageUri),
+                        contentDescription = "Profile Image",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                } else if (profile.fullName.isNotEmpty()) {
+                    Text(profile.fullName.first().toString().uppercase(), fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = TextPrimary)
+                } else {
+                    Text(if (isHebrew) "א" else "G", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = TextPrimary)
+                }
+            }
+
+            Column(modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 72.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.Top
                 ) {
                     Column {
                         Text(
@@ -170,6 +199,7 @@ fun HomeScreen(
                 title = if (isHebrew) "כרטיסיות לימוד" else "Flashcards",
                 subtitle = if (isHebrew) "למד עם החלקה" else "Learn with swipe",
                 color = Yellow,
+                isHebrew = isHebrew,
                 onClick = { onGoToFlashcard(null) }
             )
             ActionCard(
@@ -177,6 +207,7 @@ fun HomeScreen(
                 title = if (isHebrew) "חידון מילים" else "Multiple Choice Quiz",
                 subtitle = if (isHebrew) "בחן את עצמך" else "Test your knowledge",
                 color = Color(0xFF6C63FF),
+                isHebrew = isHebrew,
                 onClick = onGoToQuiz
             )
             ActionCard(
@@ -184,6 +215,7 @@ fun HomeScreen(
                 title = if (isHebrew) "התקדמות שלי" else "My Progress",
                 subtitle = if (isHebrew) "ראה כמה למדת" else "See how far you've come",
                 color = CorrectGreen,
+                isHebrew = isHebrew,
                 onClick = { onGoToProgress(null) }
             )
         }
@@ -223,13 +255,14 @@ private fun StatCard(
         colors = CardDefaults.cardColors(containerColor = White)
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
             Spacer(Modifier.height(4.dp))
-            Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = TextPrimary)
-            Text(label, style = MaterialTheme.typography.labelSmall, color = TextSecondary, textAlign = TextAlign.Center)
+            Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = TextPrimary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = TextSecondary, textAlign = TextAlign.Center, maxLines = 2, minLines = 2, lineHeight = 12.sp, modifier = Modifier.padding(top = 2.dp))
         }
     }
 }
@@ -262,6 +295,7 @@ private fun ActionCard(
     title: String,
     subtitle: String,
     color: Color,
+    isHebrew: Boolean,
     onClick: () -> Unit
 ) {
     Card(
@@ -290,7 +324,14 @@ private fun ActionCard(
                 Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary)
                 Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
             }
-            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextHint)
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = TextHint,
+                modifier = Modifier.graphicsLayer {
+                    rotationZ = if (isHebrew) 180f else 0f
+                }
+            )
         }
     }
 }

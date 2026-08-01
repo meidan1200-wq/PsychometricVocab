@@ -17,6 +17,7 @@ class VocabRepository(private val dao: WordDao) {
     fun getHardestWordsCountByUnit(track: String, unit: Int): Flow<Int> = dao.getHardestWordsCountByUnit(track, unit)
     fun getUntouchedWordsByUnit(track: String, unit: Int): Flow<List<Word>> = dao.getUntouchedWordsByUnit(track, unit)
     fun getAllUntouchedWords(track: String): Flow<List<Word>> = dao.getAllUntouchedWords(track)
+    fun getAllUntouchedCount(track: String): Flow<Int> = dao.getAllUntouchedCount(track)
     fun getUntouchedCountByUnit(track: String, unit: Int): Flow<Int> = dao.getUntouchedCountByUnit(track, unit)
 
     fun getWordsForSession(track: String, unit: Int?): Flow<List<Word>> =

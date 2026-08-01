@@ -11,10 +11,18 @@ import com.example.psychometricvocab.data.Word
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+enum class SessionEndState {
+    NONE,
+    HAS_MORE_IN_UNIT,
+    HAS_MORE_IN_DB,
+    FINISHED_ALL
+}
+
 data class FlashcardUiState(
     val words: List<Word> = emptyList(),
     val currentIndex: Int = 0,
     val sessionComplete: Boolean = false,
+    val sessionEndState: SessionEndState = SessionEndState.NONE,
     val knownInSession: Int = 0,
     val unknownInSession: Int = 0
 ) {
@@ -38,7 +46,7 @@ class FlashcardViewModel(app: Application) : AndroidViewModel(app) {
                     } else {
                         repo.getUntouchedWordsByUnit(track, unit).first()
                     }
-                    allUntouched.take(20) // Limit sort sessions to 20 words at a time
+                    allUntouched.shuffled().take(20) // Limit sort sessions to 20 words at a time
                 } else if (mode == "memorize") {
                     val hardWords = repo.getHardestWordsForReview(track, limit = 50)
                     val filtered = if (unit != null) hardWords.filter { it.unit == unit } else hardWords
@@ -56,9 +64,45 @@ class FlashcardViewModel(app: Application) : AndroidViewModel(app) {
 
     fun onSwipe(isKnown: Boolean) {
         val current = _state.value.currentWord ?: return
+        onSwipeWord(current, isKnown, isSortMode = false, track = "", unit = null)
+    }
+
+    fun onSwipeWord(word: Word, isKnown: Boolean, isSortMode: Boolean = false, track: String = "", unit: Int? = null) {
         viewModelScope.launch {
-            repo.processAnswer(current, isCorrect = isKnown)
-            advance(known = isKnown)
+            repo.processAnswer(word, isCorrect = isKnown)
+            var didFinish = false
+            _state.update { s ->
+                if (isSortMode) {
+                    val newWords = s.words.filter { it.id != word.id }
+                    if (s.words.isNotEmpty() && newWords.isEmpty()) didFinish = true
+                    s.copy(
+                        words = newWords,
+                        sessionComplete = s.sessionComplete || didFinish,
+                        knownInSession = if (isKnown) s.knownInSession + 1 else s.knownInSession,
+                        unknownInSession = if (!isKnown) s.unknownInSession + 1 else s.unknownInSession
+                    )
+                } else {
+                    val nextIndex = s.currentIndex + 1
+                    didFinish = nextIndex >= s.words.size
+                    s.copy(
+                        currentIndex = nextIndex,
+                        sessionComplete = s.sessionComplete || didFinish,
+                        knownInSession = if (isKnown) s.knownInSession + 1 else s.knownInSession,
+                        unknownInSession = if (!isKnown) s.unknownInSession + 1 else s.unknownInSession
+                    )
+                }
+            }
+            
+            if (didFinish && isSortMode && track.isNotEmpty()) {
+                val remainingInUnit = if (unit != null) repo.getUntouchedCountByUnit(track, unit).first() else repo.getAllUntouchedCount(track).first()
+                val remainingInDb = repo.getAllUntouchedCount(track).first()
+                val endState = when {
+                    remainingInUnit > 0 -> SessionEndState.HAS_MORE_IN_UNIT
+                    remainingInDb > 0 -> SessionEndState.HAS_MORE_IN_DB
+                    else -> SessionEndState.FINISHED_ALL
+                }
+                _state.update { it.copy(sessionEndState = endState) }
+            }
         }
     }
 

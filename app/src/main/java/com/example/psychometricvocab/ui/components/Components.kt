@@ -35,60 +35,83 @@ import com.example.psychometricvocab.theme.*
 
 // ─── Top App Bar ─────────────────────────────────────────────────────────────
 
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.psychometricvocab.ui.account.AccountViewModel
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import android.net.Uri
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VocabTopBar(
     title: String,
     onBack: (() -> Unit)? = null,
-    onMenu: (() -> Unit)? = null
+    onMenu: (() -> Unit)? = null,
+    onAvatarClick: (() -> Unit)? = null,
+    accountVm: AccountViewModel = viewModel()
 ) {
     val appState = LocalAppState.current
-    TopAppBar(
-        title = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        navigationIcon = {
-            if (onBack != null) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = if (appState.isHebrew) Icons.AutoMirrored.Filled.ArrowForward else Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back"
+    val profile by accountVm.profile.collectAsStateWithLifecycle()
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .background(OffWhite)
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        // Navigation Icon or Avatar
+        if (onBack != null) {
+            IconButton(onClick = onBack) {
+                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
+        } else {
+            // Profile Avatar
+            Box(
+                modifier = Modifier
+                    .padding(start = 12.dp)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(Yellow)
+                    .clickable(enabled = onAvatarClick != null) { onAvatarClick?.invoke() },
+                contentAlignment = Alignment.Center
+            ) {
+                if (profile.profileImageUri.isNotEmpty()) {
+                    AsyncImage(
+                        model = Uri.parse(profile.profileImageUri),
+                        contentDescription = "Profile Image",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
-                }
-            } else {
-                // Logo placeholder
-                Box(
-                    modifier = Modifier
-                        .padding(start = 12.dp)
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(Yellow),
-                    contentAlignment = Alignment.Center
-                ) {
+                } else if (profile.fullName.isNotEmpty()) {
+                    Text(profile.fullName.first().toString().uppercase(), fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = TextPrimary)
+                } else {
                     Text("מ", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = TextPrimary)
                 }
             }
-        },
-        actions = {
-            if (onMenu != null) {
-                IconButton(onClick = onMenu) {
-                    Icon(Icons.Default.Menu, contentDescription = "Menu")
-                }
-            } else {
-                Spacer(modifier = Modifier.width(48.dp))
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = White,
-            titleContentColor = TextPrimary
+        }
+
+        // Title
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.weight(1f)
         )
-    )
+
+        // Actions
+        if (onMenu != null) {
+            IconButton(onClick = onMenu) {
+                Icon(Icons.Default.Menu, contentDescription = "Menu")
+            }
+        } else {
+            Spacer(modifier = Modifier.width(48.dp))
+        }
+    }
 }
 
 // ─── Language Toggle ─────────────────────────────────────────────────────────

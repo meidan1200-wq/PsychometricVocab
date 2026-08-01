@@ -3,6 +3,10 @@ package com.example.psychometricvocab.ui.flashcard
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -12,6 +16,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
@@ -69,24 +75,31 @@ fun FlashcardScreen(
             val sessionComplete = state.sessionComplete
 
             when {
-                words.isEmpty() -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Yellow)
-                    }
-                }
                 sessionComplete -> {
                     SessionCompleteScreen(
                         known = state.knownInSession,
                         unknown = state.unknownInSession,
                         total = state.total,
                         isHebrew = isHebrew,
+                        mode = mode,
+                        endState = state.sessionEndState,
                         onRestart = { 
                             memorizePhase = if (mode == "memorize") "loop" else "test"
                             vm.resetSession(appState.track, unit, mode) 
                         },
+                        onNextSection = { 
+                            val nextUnit = (unit ?: 0) + 1
+                            vm.resetSession(appState.track, nextUnit, mode)
+                        },
                         onBack = onBack
                     )
                 }
+                words.isEmpty() -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Yellow)
+                    }
+                }
+
                 memorizePhase == "loop" -> {
                     MemorizeLoopScreen(
                         words = state.words,
@@ -94,6 +107,13 @@ fun FlashcardScreen(
                         playbackSpeed = playbackSpeed,
                         onSpeedChange = { playbackSpeed = it },
                         onReadyToTest = { memorizePhase = "test" }
+                    )
+                }
+                mode == "sort" -> {
+                    SortModeListScreen(
+                        words = state.words,
+                        isHebrew = isHebrew,
+                        onSwipeWord = { word, known -> vm.onSwipeWord(word, known, isSortMode = true, track = appState.track, unit = unit) }
                     )
                 }
                 else -> {
@@ -198,7 +218,10 @@ private fun SessionCompleteScreen(
     unknown: Int,
     total: Int,
     isHebrew: Boolean,
+    mode: String,
+    endState: SessionEndState,
     onRestart: () -> Unit,
+    onNextSection: () -> Unit,
     onBack: () -> Unit
 ) {
     Column(
@@ -210,38 +233,81 @@ private fun SessionCompleteScreen(
     ) {
         Text("🎉", fontSize = 64.sp)
         Spacer(Modifier.height(16.dp))
+        
+        val titleText = if (mode == "sort" && endState == SessionEndState.FINISHED_ALL) {
+            if (isHebrew) "סיימת את כל המילים במאגר!" else "Finished all words in database!"
+        } else if (mode == "sort" && endState == SessionEndState.HAS_MORE_IN_DB) {
+            if (isHebrew) "סיימת לקטלג את כל המילים ביחידה זו!" else "Finished categorizing all words in this section!"
+        } else {
+            if (isHebrew) "סיימת את הסשן!" else "Session Complete!"
+        }
+
         Text(
-            text = if (isHebrew) "סיימת את הסשן!" else "Session Complete!",
+            text = titleText,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.ExtraBold,
             color = TextPrimary,
             textAlign = TextAlign.Center
         )
         Spacer(Modifier.height(24.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            ResultBadge(
-                value = "✅ $known",
-                label = if (isHebrew) "ידעת" else "Knew",
-                bg = CorrectGreenLight,
-                accent = CorrectGreen
-            )
-            ResultBadge(
-                value = "❌ $unknown",
-                label = if (isHebrew) "לא ידעת" else "Missed",
-                bg = WrongRedLight,
-                accent = WrongRed
+        
+        if (mode != "sort") {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                ResultBadge(
+                    value = "✅ $known",
+                    label = if (isHebrew) "ידעת" else "Knew",
+                    bg = CorrectGreenLight,
+                    accent = CorrectGreen
+                )
+                ResultBadge(
+                    value = "❌ $unknown",
+                    label = if (isHebrew) "לא ידעת" else "Missed",
+                    bg = WrongRedLight,
+                    accent = WrongRed
+                )
+            }
+            Spacer(Modifier.height(32.dp))
+        }
+
+        if (mode == "sort") {
+            when (endState) {
+                SessionEndState.HAS_MORE_IN_UNIT, SessionEndState.NONE -> {
+                    YellowButton(
+                        text = if (isHebrew) "עשה עוד סיבוב" else "Make another round",
+                        onClick = onRestart,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                SessionEndState.HAS_MORE_IN_DB -> {
+                    Text(
+                        text = if (isHebrew) "רוצה לעבור ליחידה הבאה?" else "wanna move to next one?",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = TextSecondary,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    YellowButton(
+                        text = if (isHebrew) "יחידה הבאה" else "Next section",
+                        onClick = onNextSection,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                SessionEndState.FINISHED_ALL -> {
+                    // Just show back button
+                }
+            }
+        } else {
+            YellowButton(
+                text = if (isHebrew) "עוד סיבוב" else "Another One",
+                onClick = onRestart,
+                modifier = Modifier.fillMaxWidth()
             )
         }
-        Spacer(Modifier.height(32.dp))
-        YellowButton(
-            text = if (isHebrew) "עוד סיבוב" else "Another One",
-            onClick = onRestart,
-            modifier = Modifier.fillMaxWidth()
-        )
+        
         Spacer(Modifier.height(12.dp))
         TextButton(onClick = onBack) {
             Text(
-                if (isHebrew) "חזור לתפריט" else "Back to Menu",
+                if (isHebrew) "חזור לתפריט הראשי" else "Back to Home",
                 color = TextSecondary
             )
         }
@@ -377,5 +443,118 @@ private fun MemorizeLoopScreen(
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(8.dp))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SortModeListScreen(
+    words: List<com.example.psychometricvocab.data.Word>,
+    isHebrew: Boolean,
+    onSwipeWord: (com.example.psychometricvocab.data.Word, Boolean) -> Unit
+) {
+    var expandedWordId by remember { mutableStateOf<Int?>(null) }
+    val LightRedBg = Color(0xFFFCE8E8)
+    val LightGreenBg = Color(0xFFE8F5E9)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().wrapContentHeight(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            itemsIndexed(words, key = { _, word -> word.id }) { index, word ->
+                val dismissState = rememberSwipeToDismissBoxState(
+                    confirmValueChange = { dismissValue ->
+                        when (dismissValue) {
+                            SwipeToDismissBoxValue.StartToEnd -> {
+                                onSwipeWord(word, true)
+                                true
+                            }
+                            SwipeToDismissBoxValue.EndToStart -> {
+                                onSwipeWord(word, false)
+                                true
+                            }
+                            else -> false
+                        }
+                    }
+                )
+
+                // Auto-collapse when swipe starts by observing offset changes
+                LaunchedEffect(dismissState, expandedWordId) {
+                    if (expandedWordId == word.id) {
+                        snapshotFlow { 
+                            try { dismissState.requireOffset() } catch (e: Exception) { 0f }
+                        }.collect { offset ->
+                            if (Math.abs(offset) > 10f) {
+                                expandedWordId = null
+                            }
+                        }
+                    }
+                }
+
+                SwipeToDismissBox(
+                    state = dismissState,
+                    backgroundContent = { /* No background content, row itself changes color */ },
+                    content = {
+                        val isExpanded = expandedWordId == word.id
+                        val cardBgColor = when (dismissState.dismissDirection) {
+                            SwipeToDismissBoxValue.StartToEnd -> LightGreenBg
+                            SwipeToDismissBoxValue.EndToStart -> LightRedBg
+                            else -> Color.Transparent
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(cardBgColor)
+                                .animateContentSize()
+                                .clickable { 
+                                    expandedWordId = if (isExpanded) null else word.id 
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 16.dp, horizontal = 24.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = word.cleanWord,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = Color.DarkGray,
+                                    fontWeight = FontWeight.Normal
+                                )
+                            }
+                            
+                            if (isExpanded) {
+                                Text(
+                                    text = word.cleanDefinition,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.Gray,
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp, start = 24.dp, end = 24.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+
+                            if (index < words.lastIndex) {
+                                HorizontalDivider(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                                    thickness = 1.dp,
+                                    color = Color.LightGray.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
+                    }
+                )
+            }
+        }
     }
 }

@@ -2,6 +2,7 @@ package com.example.psychometricvocab.ui.components
 
 import android.content.Context
 import android.speech.tts.TextToSpeech
+import android.widget.Toast
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -44,14 +45,20 @@ private val SWIPE_THRESHOLD = 100.dp
 
 // ─── TTS Helper ──────────────────────────────────────────────────────────────
 
-class TtsHelper(context: Context) {
+class TtsHelper(private val context: Context) {
     private var tts: TextToSpeech? = null
     init {
         tts = TextToSpeech(context) {}
     }
     fun speak(text: String, isEnglish: Boolean) {
-        tts?.language = if (isEnglish) Locale.ENGLISH else Locale("he", "IL")
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
+        val locale = if (isEnglish) Locale.ENGLISH else Locale("he", "IL")
+        val result = tts?.setLanguage(locale)
+        if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+            val langName = if (isEnglish) "English" else "Hebrew"
+            Toast.makeText(context, "Please install $langName Text-To-Speech in device settings.", Toast.LENGTH_LONG).show()
+        } else {
+            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
+        }
     }
     fun shutdown() { tts?.shutdown() }
 }

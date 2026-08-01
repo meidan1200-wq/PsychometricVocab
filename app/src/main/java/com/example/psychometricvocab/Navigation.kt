@@ -11,7 +11,16 @@ import com.example.psychometricvocab.ui.home.HomeScreen
 import com.example.psychometricvocab.ui.progress.ProgressScreen
 import com.example.psychometricvocab.ui.quiz.QuizScreen
 import com.example.psychometricvocab.ui.quiz.QuizSettingsScreen
+import com.example.psychometricvocab.ui.account.AccountScreen
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.psychometricvocab.theme.TextSecondary
 import androidx.compose.ui.unit.LayoutDirection
 
 /**
@@ -26,7 +35,7 @@ import androidx.compose.ui.unit.LayoutDirection
 @Composable
 fun MainNavigation() {
     val appState = remember { AppState() }
-
+    
     // Provide both AppState and LayoutDirection down the tree
     CompositionLocalProvider(
         LocalAppState provides appState,
@@ -37,16 +46,37 @@ fun MainNavigation() {
 }
 
 @Composable
-private fun MainScaffold(appState: AppState) {
-    var currentTab by remember { mutableIntStateOf(0) }   // start on Learn (Home)
+fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui.account.AccountViewModel = viewModel()) {
+    var currentTab by rememberSaveable { mutableIntStateOf(0) }
+    var subScreen by rememberSaveable { mutableStateOf<Any?>(null) }
+    var progressExpandUnit by rememberSaveable { mutableStateOf<Int?>(null) }
 
-    // Simple screen stack per tab
-    // null = tab root; non-null = sub-screen
-    var subScreen by remember { mutableStateOf<Any?>(null) }
-    var progressExpandUnit by remember { mutableStateOf<Int?>(null) }
+    val profile by accountVm.profile.collectAsStateWithLifecycle()
+    var showRegistration by remember { mutableStateOf(false) }
 
-    Scaffold(
-        bottomBar = {
+    LaunchedEffect(profile) {
+        if (profile.fullName.isEmpty() && !profile.isGuest) {
+            showRegistration = true
+        } else {
+            showRegistration = false
+        }
+    }
+
+    if (showRegistration) {
+        com.example.psychometricvocab.ui.account.AuthScreen(
+            onCreateAccount = { name, email ->
+                val profile = com.example.psychometricvocab.data.AccountProfile(fullName = name, email = email)
+                accountVm.saveProfile(name, email, "")
+                showRegistration = false
+            },
+            onContinueAsGuest = {
+                accountVm.setGuestMode(true)
+                showRegistration = false
+            }
+        )
+    } else {
+        Scaffold(
+            bottomBar = {
             VocabBottomNav(
                 currentTab = currentTab,
                 onTabSelected = { tab ->
@@ -90,6 +120,10 @@ private fun MainScaffold(appState: AppState) {
                         onBack = { subScreen = null }
                     )
                 }
+                // ── Account sub-screen ───────────────────────────────────
+                subScreen is AccountKey -> {
+                    AccountScreen(onBack = { subScreen = null })
+                }
                 // ── Tab roots ────────────────────────────────────────────
                 else -> when (currentTab) {
                     0 -> {
@@ -100,7 +134,8 @@ private fun MainScaffold(appState: AppState) {
                                 progressExpandUnit = unit
                                 currentTab = 4 
                             },
-                            onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) }
+                            onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) },
+                            onAvatarClick = { subScreen = AccountKey }
                         )
                     }
                     1 -> {
@@ -120,7 +155,8 @@ private fun MainScaffold(appState: AppState) {
                                 progressExpandUnit = unit
                                 currentTab = 4 
                             },
-                            onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) }
+                            onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) },
+                            onAvatarClick = { subScreen = AccountKey }
                         )
                     }
                     3 -> {
@@ -132,7 +168,11 @@ private fun MainScaffold(appState: AppState) {
                         )
                     }
                     4 -> {
-                        ProgressScreen(autoExpandUnit = progressExpandUnit)
+                        ProgressScreen(
+                            autoExpandUnit = progressExpandUnit,
+                            onBack = { currentTab = 0 },
+                            onAvatarClick = { subScreen = AccountKey }
+                        )
                     }
                     else -> {
                         HomeScreen(
@@ -142,11 +182,13 @@ private fun MainScaffold(appState: AppState) {
                                 progressExpandUnit = unit
                                 currentTab = 4 
                             },
-                            onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) }
+                            onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) },
+                            onAvatarClick = { subScreen = AccountKey }
                         )
                     }
                 }
             }
         }
+    }
     }
 }

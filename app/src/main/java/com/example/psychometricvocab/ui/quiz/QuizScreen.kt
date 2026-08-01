@@ -99,15 +99,14 @@ fun QuizScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = 20.dp, vertical = 12.dp)
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
                             Column(
                                 modifier = Modifier
                                     .weight(1f)
                                     .verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                LanguageModeBadge(isHebrew)
 
                                 WordProgressBar(
                                     current = state.progress + 1,
@@ -131,7 +130,7 @@ fun QuizScreen(
                                             .shadow(6.dp, RoundedCornerShape(20.dp))
                                     ) {
                                         Column(
-                                            modifier = Modifier.padding(28.dp),
+                                            modifier = Modifier.padding(16.dp),
                                             horizontalAlignment = Alignment.CenterHorizontally
                                         ) {
                                             val displayWord = q.word.cleanWord
@@ -141,8 +140,14 @@ fun QuizScreen(
                                                     .clip(CircleShape)
                                                     .background(Yellow.copy(alpha = 0.2f))
                                                     .clickable {
-                                                        tts.language = if (appState.track == "hebrew") Locale("he", "IL") else Locale.ENGLISH
-                                                        tts.speak(displayWord, TextToSpeech.QUEUE_FLUSH, null, null)
+                                                        val locale = if (appState.track == "hebrew") Locale("he", "IL") else Locale.ENGLISH
+                                                        val result = tts.setLanguage(locale)
+                                                        if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                                                            val langName = if (appState.track == "hebrew") "Hebrew" else "English"
+                                                            android.widget.Toast.makeText(context, "Please install $langName Text-To-Speech in device settings.", android.widget.Toast.LENGTH_LONG).show()
+                                                        } else {
+                                                            tts.speak(displayWord, TextToSpeech.QUEUE_FLUSH, null, null)
+                                                        }
                                                     },
                                                 contentAlignment = Alignment.Center
                                             ) {
@@ -276,22 +281,6 @@ fun QuizScreen(
     }
 }
 
-@Composable
-private fun LanguageModeBadge(isHebrew: Boolean) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(Yellow.copy(alpha = 0.2f))
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-    ) {
-        Text(
-            text = if (isHebrew) "🇮🇱 עברית → English" else "🇺🇸 English → עברית",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = YellowDark
-        )
-    }
-}
 
 @Composable
 private fun QuizResultScreen(
