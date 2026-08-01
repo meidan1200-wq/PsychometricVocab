@@ -65,30 +65,7 @@ fun HomeScreen(
                 )
                 .padding(bottom = 24.dp)
         ) {
-            // Profile Avatar at the top corner (above the welcome text)
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = 24.dp, top = 24.dp)
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(Yellow)
-                    .clickable { onAvatarClick() },
-                contentAlignment = Alignment.Center
-            ) {
-                if (profile.profileImageUri.isNotEmpty()) {
-                    coil.compose.AsyncImage(
-                        model = android.net.Uri.parse(profile.profileImageUri),
-                        contentDescription = "Profile Image",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                    )
-                } else if (profile.fullName.isNotEmpty()) {
-                    Text(profile.fullName.first().toString().uppercase(), fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = TextPrimary)
-                } else {
-                    Text(if (isHebrew) "א" else "G", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = TextPrimary)
-                }
-            }
+
 
             Column(modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 72.dp)) {
                 Row(
@@ -250,19 +227,20 @@ private fun StatCard(
         modifier.shadow(2.dp, RoundedCornerShape(16.dp))
     }
     Card(
-        modifier = cardModifier,
+        modifier = cardModifier.aspectRatio(1f),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = White)
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(28.dp))
+            Spacer(Modifier.height(8.dp))
+            Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, color = TextPrimary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             Spacer(Modifier.height(4.dp))
-            Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = TextPrimary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            Text(label, style = MaterialTheme.typography.labelSmall, color = TextSecondary, textAlign = TextAlign.Center, maxLines = 2, minLines = 2, lineHeight = 12.sp, modifier = Modifier.padding(top = 2.dp))
+            Text(label, style = MaterialTheme.typography.labelMedium, color = TextSecondary, textAlign = TextAlign.Center, maxLines = 2, minLines = 1, lineHeight = 14.sp)
         }
     }
 }

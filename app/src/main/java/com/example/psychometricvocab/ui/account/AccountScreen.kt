@@ -117,7 +117,10 @@ fun AccountScreen(
                 label = { Text("Full Name") },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = YellowDark)
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Yellow,
+                    focusedLabelColor = Yellow
+                )
             )
 
             Spacer(Modifier.height(16.dp))
@@ -128,7 +131,10 @@ fun AccountScreen(
                 label = { Text("Email") },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = YellowDark)
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Yellow,
+                    focusedLabelColor = Yellow
+                )
             )
 
             Spacer(Modifier.height(8.dp))

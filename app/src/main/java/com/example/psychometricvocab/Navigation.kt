@@ -170,7 +170,7 @@ fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui
                     4 -> {
                         ProgressScreen(
                             autoExpandUnit = progressExpandUnit,
-                            onBack = { currentTab = 0 },
+                            onBack = null,
                             onAvatarClick = { subScreen = AccountKey }
                         )
                     }

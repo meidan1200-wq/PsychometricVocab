@@ -528,19 +528,21 @@ private fun SortModeListScreen(
                             ) {
                                 Text(
                                     text = word.cleanWord,
-                                    style = MaterialTheme.typography.bodyLarge,
+                                    style = MaterialTheme.typography.titleLarge,
                                     color = Color.DarkGray,
-                                    fontWeight = FontWeight.Normal
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 22.sp
                                 )
                             }
                             
                             if (isExpanded) {
                                 Text(
                                     text = word.cleanDefinition,
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    style = MaterialTheme.typography.titleMedium,
                                     color = Color.Gray,
                                     modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp, start = 24.dp, end = 24.dp),
-                                    textAlign = TextAlign.Center
+                                    textAlign = TextAlign.Center,
+                                    fontSize = 18.sp
                                 )
                             }
 
