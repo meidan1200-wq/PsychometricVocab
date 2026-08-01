@@ -1,6 +1,6 @@
 {
-  "latest_version": "1.1.1",
-  "latest_version_code": 3,
-  "apk_url": "https://github.com/meidan1200-wq/PsychometricVocab/releases/download/v1.1.1/app-debug.apk",
-  "release_notes": "Minor improvements and bug fixes."
+  "latest_version": "1.1.2",
+  "latest_version_code": 4,
+  "apk_url": "https://github.com/meidan1200-wq/PsychometricVocab/releases/download/v1.1.2/app-debug.apk",
+  "release_notes": "Added Account System, updated UI alignment, and fixed Guest avatar."
 }
