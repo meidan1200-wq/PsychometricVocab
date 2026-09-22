@@ -25,14 +25,12 @@
 - If you disagree with the Manager, give your reasons once. The Manager's decision is final; the owner outranks both of you.
 - If the Manager is unreachable and something is urgent, tell the owner.
 
-## Watch loop (how new work reaches you)
-Start it with:
-```
-/loop 5m Fetch origin claude/charming-planck-v3dszd. If there is a new commit since the last check, read the newest entries in agents/HANDOFF.md, then pull, build, install and test as it says, and report to the Manager.
-```
+## Watch for new commits (how new work reaches you)
+The Manager messages you directly when there's work. As a backstop, you can run a background shell watcher (Bash `run_in_background`: `git fetch` every 300 s, exit when `origin/claude/charming-planck-v3dszd` moves). When it exits, read the new HANDOFF.md entries, do what they say, then restart it. Don't use `/loop`; it spends tokens every tick (see DECISIONS.md, 2026-09-23).
+Report once, when finished: OK or FAIL, what you verified, and what you did not check. No progress pings.
 
 ## Setup checklist (do once)
 - [ ] Run as a **Claude Code CLI session with Remote Control on**, in `C:\Users\Temp\Documents\PsychometricVocab`.
 - [ ] Run `ListAgents`. Send the Manager a hello with `SendMessage`.
-- [ ] Start the watch loop above.
+- [ ] Optionally start the watcher above.
 - [ ] Confirm `git`, `java`, `adb` and the emulator all work; report versions to the Manager.

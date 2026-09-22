@@ -8,6 +8,10 @@ The owner (meidan1200-wq) runs this project with a team of Claude agents. Every 
 | **IT** | Owner's PC (local) | [IT.md](IT.md) |
 | **Cloud QA & Docs** | Cloud (Claude Code on the web), session `session_01DYHRi2Kvpt2vZYWuRoX9oY` | [QA.md](QA.md) |
 
+Local session IDs (titles change; IDs don't. Wake an idle one with `SendMessage` to its ID):
+- Manager: title "Project manager setup"
+- IT: `local_a744400b-2386-4db3-bdcb-73afd0457c9d` (title "Android Emulator launch guide")
+
 ## Chain of command
 1. **Owner**: final authority over everything.
 2. **Manager**: makes project and product decisions when the owner isn't around, assigns work, and has the final word in any disagreement between agents.
@@ -21,7 +25,7 @@ The owner (meidan1200-wq) runs this project with a team of Claude agents. Every 
 ## How the agents talk
 - **Local ↔ local** (Manager, IT): `SendMessage` using the names from `ListAgents`.
 - **Local → Cloud QA:** `SendMessage` to QA's current short name from `ListAgents`. The name changes when the cloud container restarts; the session ID above never does.
-- **Cloud QA → local:** QA pushes, adding an entry to [HANDOFF.md](HANDOFF.md). The local agents run a watch loop (`/loop 5m`) that fetches the branch and reads new entries. QA also messages them directly when they show up in its `ListAgents`.
+- **Cloud QA → local:** QA pushes, adding an entry to [HANDOFF.md](HANDOFF.md). The local agents run a zero-token background `git fetch` watcher that wakes them only on a new commit. QA also messages them directly when they show up in its `ListAgents`.
 - [HANDOFF.md](HANDOFF.md) is the fallback log for any message that has to survive a restart. Newest entry on top.
 
 ## Standard cycle
