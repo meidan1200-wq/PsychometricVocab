@@ -18,8 +18,11 @@ The owner (meidan1200-wq) runs this project with two Claude agents. Every agent 
 - IT does **not** edit app source code. If a local fix is needed, IT reports it to the PM instead.
 
 ## How the agents talk
-1. **Direct messages (preferred):** the PM and IT message each other by session name through `SendMessage`. For this to work, the local session has to be started with **Remote Control** enabled, so it can be reached from the cloud.
-2. **Fallback, the handoff log:** [HANDOFF.md](HANDOFF.md) in this folder. Each side appends an entry; newest at the top. It's committed through git, so it works even when the direct link is down.
+PM ID (permanent): **`session_01DYHRi2Kvpt2vZYWuRoX9oY`**. Short names like `psychometricvocab-xx` change whenever the cloud container restarts, so run `ListAgents` to get the current one.
+
+- **IT → PM:** `SendMessage` to the PM's current name from `ListAgents`. If the PM doesn't show up there, write an entry in `HANDOFF.md` and push it.
+- **PM → IT:** the PM pushes, adding an entry to `HANDOFF.md` with every push. IT runs a watch loop (`/loop 5m`, see IT.md) that fetches the branch and acts when there's a new commit. If IT is reachable through `ListAgents` (a CLI session with Remote Control on), the PM also messages it directly.
+- **Humans:** the owner can talk to either agent at any time.
 
 ## Standard cycle
 1. The PM develops, builds and runs unit tests in the cloud, then pushes.

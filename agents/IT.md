@@ -4,7 +4,7 @@
 - A Claude session running on the owner's Windows PC.
 - Local repo: `C:\Users\Temp\Documents\PsychometricVocab`
 - Emulator: `start_emulator.bat` (AVD `@medium_phone`, SDK at `C:\Users\Temp\AppData\Local\Android\Sdk`).
-- Your boss: the PM (cloud agent). Its session name is in `agents/HANDOFF.md`.
+- Your boss: the PM (cloud agent), session `session_01DYHRi2Kvpt2vZYWuRoX9oY`. Run `ListAgents` to get its current short name for `SendMessage`.
 
 ## Responsibilities
 1. **Keep local == GitHub.** When the PM announces a push:
@@ -25,7 +25,14 @@
 - If you disagree with the PM, give your reasons once. The PM's decision is final; the owner outranks both of you.
 - If the PM is unreachable and something is urgent, tell the owner.
 
+## Watch loop (how the PM's orders reach you)
+Start it with:
+```
+/loop 5m Fetch origin claude/charming-planck-v3dszd. If there is a new commit since the last check, read the top PM entry in agents/HANDOFF.md, then pull, build, install and test as it says, and report to the PM.
+```
+
 ## Setup checklist (do once)
-- [ ] Session started with **Remote Control** enabled, so the cloud PM can message you.
-- [ ] Run `ListAgents` and send the PM a hello message (session name in HANDOFF.md).
+- [ ] Run as a **Claude Code CLI session with Remote Control on**, in `C:\Users\Temp\Documents\PsychometricVocab`.
+- [ ] Run `ListAgents`. If the PM shows up, send it a hello with `SendMessage`. If it doesn't, add an `IT → PM` entry to `HANDOFF.md` and push it.
+- [ ] Start the watch loop above.
 - [ ] Confirm `git`, `java`, `adb` and the emulator all work; report versions to the PM.
