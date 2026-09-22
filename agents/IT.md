@@ -25,7 +25,7 @@
 - If you disagree with the Manager, give your reasons once. The Manager's decision is final; the owner outranks both of you.
 - If the Manager is unreachable and something is urgent, tell the owner.
 
-## Watch loop (how the PM's orders reach you)
+## Watch loop (how new work reaches you)
 Start it with:
 ```
 /loop 5m Fetch origin claude/charming-planck-v3dszd. If there is a new commit since the last check, read the newest entries in agents/HANDOFF.md, then pull, build, install and test as it says, and report to the Manager.
