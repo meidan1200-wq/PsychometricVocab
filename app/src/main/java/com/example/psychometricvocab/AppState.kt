@@ -3,6 +3,7 @@ package com.example.psychometricvocab
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.LayoutDirection
 
@@ -25,6 +26,14 @@ class AppState {
 
     /** The database track corresponding to the current language */
     val track: String get() = if (isHebrew) "hebrew" else "english"
+
+    companion object {
+        /** Keeps the selected language across activity recreation and process death */
+        val StateSaver = Saver<AppState, String>(
+            save = { it.language.name },
+            restore = { name -> AppState().apply { language = AppLanguage.valueOf(name) } }
+        )
+    }
 }
 
 val LocalAppState = compositionLocalOf { AppState() }

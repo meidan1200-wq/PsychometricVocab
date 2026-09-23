@@ -62,6 +62,13 @@ interface WordDao {
     @Query("SELECT * FROM words WHERE track = :track AND wrongCount > 0 AND isKnown = 0 ORDER BY srsScore ASC, nextReviewDate ASC LIMIT :limit")
     suspend fun getHardestWordsForReview(track: String, limit: Int): List<Word>
 
+    @Query("SELECT * FROM words WHERE track = :track AND unit = :unit AND wrongCount > 0 AND isKnown = 0 ORDER BY srsScore ASC, nextReviewDate ASC LIMIT :limit")
+    suspend fun getHardestWordsForReviewByUnit(track: String, unit: Int, limit: Int): List<Word>
+
+    /** Clears learning progress but keeps the vocabulary itself */
+    @Query("UPDATE words SET srsScore = 0, easeFactor = 2.5, interval = 1, nextReviewDate = 0, correctCount = 0, wrongCount = 0, isKnown = 0")
+    suspend fun resetAllProgress()
+
     @Query("SELECT * FROM words WHERE track = :track AND isKnown = 0 ORDER BY nextReviewDate ASC LIMIT :limit")
     fun getUpcomingReviews(track: String, limit: Int): Flow<List<Word>>
 

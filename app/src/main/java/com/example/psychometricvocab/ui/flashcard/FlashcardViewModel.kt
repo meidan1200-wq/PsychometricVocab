@@ -8,6 +8,7 @@ import com.example.psychometricvocab.data.SrsEngine
 import com.example.psychometricvocab.data.VocabDatabase
 import com.example.psychometricvocab.data.VocabRepository
 import com.example.psychometricvocab.data.Word
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -24,7 +25,8 @@ data class FlashcardUiState(
     val sessionComplete: Boolean = false,
     val sessionEndState: SessionEndState = SessionEndState.NONE,
     val knownInSession: Int = 0,
-    val unknownInSession: Int = 0
+    val unknownInSession: Int = 0,
+    val isLoading: Boolean = true
 ) {
     val currentWord get() = words.getOrNull(currentIndex)
     val progress get() = if (words.isEmpty()) 0 else currentIndex
@@ -37,65 +39,68 @@ class FlashcardViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow(FlashcardUiState())
     val state: StateFlow<FlashcardUiState> = _state.asStateFlow()
 
+    private var loadJob: Job? = null
+
     fun loadWords(track: String, unit: Int?, mode: String) {
-        viewModelScope.launch {
-            if (_state.value.words.isEmpty()) {
-                val wordsList = if (mode == "sort") {
-                    val allUntouched = if (unit == null) {
-                        repo.getAllUntouchedWords(track).first()
-                    } else {
-                        repo.getUntouchedWordsByUnit(track, unit).first()
-                    }
-                    allUntouched.shuffled().take(20) // Limit sort sessions to 20 words at a time
-                } else if (mode == "memorize") {
-                    val hardWords = repo.getHardestWordsForReview(track, limit = 50)
-                    val filtered = if (unit != null) hardWords.filter { it.unit == unit } else hardWords
-                    filtered.take(5) // Limit memorize sessions to 5 words
+        if (_state.value.words.isNotEmpty()) return
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
+            val wordsList = if (mode == "sort") {
+                val allUntouched = if (unit == null) {
+                    repo.getAllUntouchedWords(track).first()
                 } else {
-                    val fallback = if (unit == null) repo.getAllUntouchedWords(track).first() 
-                                   else repo.getUntouchedWordsByUnit(track, unit).first()
-                    fallback.take(20)
+                    repo.getUntouchedWordsByUnit(track, unit).first()
                 }
-                
-                _state.update { it.copy(words = wordsList, currentIndex = 0) }
+                allUntouched.shuffled().take(20) // Limit sort sessions to 20 words at a time
+            } else if (mode == "memorize") {
+                // Filter by unit in SQL: filtering the global top 50 often left a unit with 0 words
+                val hardWords = if (unit != null) {
+                    repo.getHardestWordsForReviewByUnit(track, unit, limit = 5)
+                } else {
+                    repo.getHardestWordsForReview(track, limit = 5)
+                }
+                hardWords // Limit memorize sessions to 5 words
+            } else {
+                val fallback = if (unit == null) repo.getAllUntouchedWords(track).first()
+                               else repo.getUntouchedWordsByUnit(track, unit).first()
+                fallback.take(20)
             }
+
+            _state.update { it.copy(words = wordsList, currentIndex = 0, isLoading = false) }
         }
     }
 
+    /** Test-mode card answered. State advances immediately so a double tap cannot skip a card. */
     fun onSwipe(isKnown: Boolean) {
-        val current = _state.value.currentWord ?: return
-        onSwipeWord(current, isKnown, isSortMode = false, track = "", unit = null)
+        val s = _state.value
+        val current = s.currentWord ?: return
+        if (s.sessionComplete) return
+        advance(isKnown)
+        viewModelScope.launch { repo.processAnswer(current, isCorrect = isKnown) }
     }
 
+    /** Sort-mode row swiped. Ignores repeated callbacks for a word that was already sorted. */
     fun onSwipeWord(word: Word, isKnown: Boolean, isSortMode: Boolean = false, track: String = "", unit: Int? = null) {
+        if (!isSortMode) {
+            onSwipe(isKnown)
+            return
+        }
+        val s = _state.value
+        if (s.words.none { it.id == word.id }) return
+        val newWords = s.words.filter { it.id != word.id }
+        val didFinish = newWords.isEmpty()
+        _state.value = s.copy(
+            words = newWords,
+            sessionComplete = s.sessionComplete || didFinish,
+            knownInSession = if (isKnown) s.knownInSession + 1 else s.knownInSession,
+            unknownInSession = if (!isKnown) s.unknownInSession + 1 else s.unknownInSession
+        )
+
         viewModelScope.launch {
             repo.processAnswer(word, isCorrect = isKnown)
-            var didFinish = false
-            _state.update { s ->
-                if (isSortMode) {
-                    val newWords = s.words.filter { it.id != word.id }
-                    if (s.words.isNotEmpty() && newWords.isEmpty()) didFinish = true
-                    s.copy(
-                        words = newWords,
-                        sessionComplete = s.sessionComplete || didFinish,
-                        knownInSession = if (isKnown) s.knownInSession + 1 else s.knownInSession,
-                        unknownInSession = if (!isKnown) s.unknownInSession + 1 else s.unknownInSession
-                    )
-                } else {
-                    val nextIndex = s.currentIndex + 1
-                    didFinish = nextIndex >= s.words.size
-                    s.copy(
-                        currentIndex = nextIndex,
-                        sessionComplete = s.sessionComplete || didFinish,
-                        knownInSession = if (isKnown) s.knownInSession + 1 else s.knownInSession,
-                        unknownInSession = if (!isKnown) s.unknownInSession + 1 else s.unknownInSession
-                    )
-                }
-            }
-            
-            if (didFinish && isSortMode && track.isNotEmpty()) {
-                val remainingInUnit = if (unit != null) repo.getUntouchedCountByUnit(track, unit).first() else repo.getAllUntouchedCount(track).first()
+            if (didFinish && track.isNotEmpty()) {
                 val remainingInDb = repo.getAllUntouchedCount(track).first()
+                val remainingInUnit = if (unit != null) repo.getUntouchedCountByUnit(track, unit).first() else remainingInDb
                 val endState = when {
                     remainingInUnit > 0 -> SessionEndState.HAS_MORE_IN_UNIT
                     remainingInDb > 0 -> SessionEndState.HAS_MORE_IN_DB
@@ -119,6 +124,7 @@ class FlashcardViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun resetSession(track: String, unit: Int?, mode: String) {
+        loadJob?.cancel()
         _state.update { FlashcardUiState() }
         loadWords(track, unit, mode)
     }

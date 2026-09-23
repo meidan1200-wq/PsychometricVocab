@@ -15,10 +15,9 @@ object VocabDataLoader {
         try {
             Log.d(TAG, "Starting to load vocabulary data from assets")
             val inputStream = context.assets.open("psychometric_vocab_CLEAN.json")
-            val reader = InputStreamReader(inputStream)
-            
-            val vocabJson = Gson().fromJson(reader, VocabJson::class.java)
-            reader.close()
+            val vocabJson = InputStreamReader(inputStream, Charsets.UTF_8).use { reader ->
+                Gson().fromJson(reader, VocabJson::class.java)
+            }
 
             val wordsToInsert = vocabJson.flat.map { entry ->
                 val track = if (entry.language == "עברית") "hebrew" else "english"
@@ -31,10 +30,10 @@ object VocabDataLoader {
             }
 
             Log.d(TAG, "Parsed ${wordsToInsert.size} words. Inserting into database...")
-            // Room handles insertAll in a transaction. We chunk it just in case, though 6000 is fine.
-            wordsToInsert.chunked(1000).forEach { chunk ->
-                dao.insertAll(chunk)
-            }
+            // A single insertAll runs in one transaction: if the app is killed mid-seed nothing is
+            // committed and seeding simply runs again next launch. (Chunked inserts could leave a
+            // partial database, and the "count == 0" check would then never re-seed it.)
+            dao.insertAll(wordsToInsert)
             Log.d(TAG, "Vocabulary load complete!")
 
         } catch (e: Exception) {

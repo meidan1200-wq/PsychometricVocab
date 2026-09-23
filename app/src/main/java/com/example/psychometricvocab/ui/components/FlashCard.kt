@@ -67,11 +67,11 @@ fun SwipeableFlashCard(
     word: Word,
     cardIndex: Int,
     totalCards: Int,
+    tts: TtsHelper,
     onSwipeKnown: () -> Unit,
     onSwipeUnknown: () -> Unit
 ) {
     val appState = LocalAppState.current
-    val context = LocalContext.current
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val isHebrew = appState.isHebrew
@@ -98,8 +98,8 @@ fun SwipeableFlashCard(
         label = "cardRotation"
     )
 
-    val tts = remember { TtsHelper(context) }
-    DisposableEffect(Unit) { onDispose { tts.shutdown() } }
+    // TtsHelper is owned by the screen: creating a TextToSpeech engine per card re-bound
+    // the TTS service on every swipe.
 
     // Flip animation
     val flipRotation by animateFloatAsState(

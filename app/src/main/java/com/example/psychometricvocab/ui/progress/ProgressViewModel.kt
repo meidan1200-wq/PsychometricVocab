@@ -6,8 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.example.psychometricvocab.data.VocabDatabase
 import com.example.psychometricvocab.data.VocabRepository
 import com.example.psychometricvocab.data.Word
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 
 data class ProgressUiState(
     val total: Int = 0,
@@ -21,17 +22,21 @@ data class ProgressUiState(
 class ProgressViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = VocabRepository(VocabDatabase.getInstance(app).wordDao())
 
-    private val _uiState = MutableStateFlow(ProgressUiState())
-    val uiState: StateFlow<ProgressUiState> = _uiState.asStateFlow()
+    private val track = MutableStateFlow<String?>(null)
 
-    fun loadData(track: String) {
-        viewModelScope.launch {
+    // This loads every word of the track, so it must not keep running in the background:
+    // WhileSubscribed stops it 5s after the Progress screen is left, flatMapLatest drops the
+    // old track on language switch, and the grouping runs off the main thread.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val uiState: StateFlow<ProgressUiState> = track
+        .filterNotNull()
+        .flatMapLatest { t ->
             combine(
-                repo.getTotalCount(track),
-                repo.getKnownCount(track),
-                repo.getUnknownCount(track),
-                repo.getUpcomingReviews(track, 30),
-                repo.getAllWords(track)
+                repo.getTotalCount(t),
+                repo.getKnownCount(t),
+                repo.getUnknownCount(t),
+                repo.getUpcomingReviews(t, 30),
+                repo.getAllWords(t)
             ) { total, known, unknown, upcoming, allWords ->
                 val wordsByUnit = allWords.groupBy { it.unit }.toMutableMap()
                 val allKnownWords = allWords.filter { it.isKnown }
@@ -49,7 +54,12 @@ class ProgressViewModel(app: Application) : AndroidViewModel(app) {
                     unitStats = unitStats,
                     wordsByUnit = wordsByUnit
                 )
-            }.collect { _uiState.value = it }
+            }
         }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProgressUiState())
+
+    fun loadData(track: String) {
+        this.track.value = track
     }
 }

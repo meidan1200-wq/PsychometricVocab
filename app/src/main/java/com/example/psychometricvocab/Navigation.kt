@@ -17,6 +17,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -32,9 +33,14 @@ import androidx.compose.ui.unit.LayoutDirection
  * - Bottom nav drives tab switching; sub-screens (flashcard, quiz) are
  *   pushed on top of the current tab via a simple back-stack state.
  */
+private val SubScreenSaver = Saver<Any?, String>(
+    save = { SubScreenCodec.encode(it) },
+    restore = { SubScreenCodec.decode(it) }
+)
+
 @Composable
 fun MainNavigation() {
-    val appState = remember { AppState() }
+    val appState = rememberSaveable(saver = AppState.StateSaver) { AppState() }
     
     // Provide both AppState and LayoutDirection down the tree
     CompositionLocalProvider(
@@ -48,7 +54,7 @@ fun MainNavigation() {
 @Composable
 fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui.account.AccountViewModel = viewModel()) {
     var currentTab by rememberSaveable { mutableIntStateOf(0) }
-    var subScreen by rememberSaveable { mutableStateOf<Any?>(null) }
+    var subScreen by rememberSaveable(stateSaver = SubScreenSaver) { mutableStateOf<Any?>(null) }
     var progressExpandUnit by rememberSaveable { mutableStateOf<Int?>(null) }
 
     val profile by accountVm.profile.collectAsStateWithLifecycle()

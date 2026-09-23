@@ -47,6 +47,10 @@ fun ProgressScreen(
         vm.loadData(appState.track)
     }
 
+    // Must be remembered outside the LazyColumn builder, otherwise the expanded unit
+    // collapses every time the progress data refreshes.
+    var expandedUnit by remember(autoExpandUnit) { mutableStateOf(autoExpandUnit) }
+
     Scaffold(
         topBar = {
             VocabTopBar(
@@ -62,8 +66,6 @@ fun ProgressScreen(
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            var expandedUnit by mutableStateOf<Int?>(autoExpandUnit)
-            
             // ── Circular Progress ──────────────────────────────────────────
             item {
                 Card(
@@ -154,7 +156,7 @@ fun ProgressScreen(
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
                 }
-                items(state.unitStats.entries.sortedBy { it.key }) { (unit, stats) ->
+                items(state.unitStats.entries.sortedBy { it.key }, key = { it.key }) { (unit, stats) ->
                     val expanded = expandedUnit == unit
                     val (known, total) = stats
                     val pct = if (total > 0) known.toFloat() / total else 0f

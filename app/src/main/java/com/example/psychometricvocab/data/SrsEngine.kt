@@ -74,8 +74,14 @@ object SrsEngine {
             repeat(weight) { weighted.add(word) }
         }
         weighted.shuffle()
-        return weighted.take(count).distinctBy { it.id }
-            .let { if (it.size < count) it + weighted.take(count - it.size) else it }
-            .take(count)
+        // Walk the shuffled, weighted list and keep the first occurrence of each word.
+        // (The old "take + distinct, then top up from the start" padded the session with
+        // words that were already in it, so the same question could appear twice.)
+        val selected = LinkedHashMap<Int, Word>()
+        for (word in weighted) {
+            if (selected.size >= count) break
+            selected.putIfAbsent(word.id, word)
+        }
+        return selected.values.toList()
     }
 }

@@ -36,7 +36,7 @@ fun FlashcardSettingsScreen(
     var hardCount by remember { mutableStateOf(0) }
 
     // Load units and counts
-    LaunchedEffect(appState.track, selectedUnit) {
+    LaunchedEffect(appState.track) {
         val repo = VocabRepository(VocabDatabase.getInstance(context).wordDao())
         repo.getAllUnits(appState.track).collect { unitList -> units = unitList }
     }
@@ -44,7 +44,7 @@ fun FlashcardSettingsScreen(
     LaunchedEffect(appState.track, selectedUnit) {
         val repo = VocabRepository(VocabDatabase.getInstance(context).wordDao())
         if (selectedUnit == null) {
-            repo.getAllUntouchedWords(appState.track).collect { untouchedCount = it.size }
+            repo.getAllUntouchedCount(appState.track).collect { untouchedCount = it }
         } else {
             repo.getUntouchedCountByUnit(appState.track, selectedUnit!!).collect { untouchedCount = it }
         }

@@ -1,5 +1,6 @@
 package com.example.psychometricvocab
 
+import android.app.Activity
 import android.app.AlertDialog
 import android.app.DownloadManager
 import android.content.BroadcastReceiver
@@ -22,6 +23,8 @@ import java.util.concurrent.Executors
 
 class UpdateManager(private val context: Context, private val updateJsonUrl: String) {
 
+    // The download receiver and installer outlive the Activity, so they use the app context
+    private val appContext: Context = context.applicationContext
     private val executor = Executors.newSingleThreadExecutor()
     private val handler = Handler(Looper.getMainLooper())
     private var downloadId: Long = -1
@@ -53,6 +56,8 @@ class UpdateManager(private val context: Context, private val updateJsonUrl: Str
                 }
             } catch (e: Exception) {
                 Log.e("UpdateManager", "Failed to check for updates", e)
+            } finally {
+                executor.shutdown()
             }
         }
     }
@@ -72,6 +77,10 @@ class UpdateManager(private val context: Context, private val updateJsonUrl: Str
     }
 
     private fun showUpdateDialog(apkUrl: String, releaseNotes: String) {
+        // The check finishes on a background thread; the user may have left the screen by then.
+        // Showing a dialog on a finished Activity throws BadTokenException and crashes the app.
+        val activity = context as? Activity
+        if (activity != null && (activity.isFinishing || activity.isDestroyed)) return
         AlertDialog.Builder(context)
             .setTitle("Update Available")
             .setMessage(releaseNotes)
@@ -92,19 +101,19 @@ class UpdateManager(private val context: Context, private val updateJsonUrl: Str
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 // Stores in Android/data/<your.package.name>/files/Download/
                 // This bypasses scoped storage restrictions
-                .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, "update.apk")
+                .setDestinationInExternalFilesDir(appContext, Environment.DIRECTORY_DOWNLOADS, "update.apk")
                 .setAllowedOverMetered(true)
                 .setAllowedOverRoaming(true)
 
-            val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-            
+            val downloadManager = appContext.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+
             // Delete previous update.apk if it exists
-            val file = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "update.apk")
+            val file = File(appContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "update.apk")
             if (file.exists()) file.delete()
 
             downloadId = downloadManager.enqueue(request)
 
-            Toast.makeText(context, "Download started...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(appContext, "Download started...", Toast.LENGTH_SHORT).show()
 
             // Register receiver for when the download completes
             val receiverFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -112,13 +121,13 @@ class UpdateManager(private val context: Context, private val updateJsonUrl: Str
             } else {
                 0
             }
-            context.registerReceiver(
+            appContext.registerReceiver(
                 downloadReceiver,
                 IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
                 receiverFlags
             )
         } catch (e: Exception) {
-            Toast.makeText(context, "Download failed to start", Toast.LENGTH_SHORT).show()
+            Toast.makeText(appContext, "Download failed to start", Toast.LENGTH_SHORT).show()
             Log.e("UpdateManager", "Download failed", e)
         }
     }
@@ -129,7 +138,7 @@ class UpdateManager(private val context: Context, private val updateJsonUrl: Str
             if (id == downloadId) {
                 installApk(context)
                 try {
-                    context.unregisterReceiver(this)
+                    appContext.unregisterReceiver(this)
                 } catch (e: Exception) {
                     // Ignore if already unregistered
                 }

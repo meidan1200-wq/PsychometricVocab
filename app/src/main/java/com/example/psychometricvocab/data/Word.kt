@@ -19,6 +19,11 @@ data class Word(
     val wrongCount: Int = 0,
     val isKnown: Boolean = false
 ) {
-    val cleanWord: String get() = android.text.Html.fromHtml(word, android.text.Html.FROM_HTML_MODE_LEGACY).toString()
-    val cleanDefinition: String get() = android.text.Html.fromHtml(definition, android.text.Html.FROM_HTML_MODE_LEGACY).toString()
+    val cleanWord: String get() = stripHtml(word)
+    val cleanDefinition: String get() = stripHtml(definition)
 }
+
+/** Html.fromHtml is expensive and runs on every recomposition; skip it for plain text. */
+private fun stripHtml(text: String): String =
+    if (text.indexOf('<') < 0 && text.indexOf('&') < 0) text
+    else android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_LEGACY).toString()

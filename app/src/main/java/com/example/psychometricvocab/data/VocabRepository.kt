@@ -30,5 +30,6 @@ class VocabRepository(private val dao: WordDao) {
 
     suspend fun getWordsToReview(track: String, limit: Int): List<Word> = dao.getWordsToReview(track, limit)
     suspend fun getHardestWordsForReview(track: String, limit: Int): List<Word> = dao.getHardestWordsForReview(track, limit)
+    suspend fun getHardestWordsForReviewByUnit(track: String, unit: Int, limit: Int): List<Word> = dao.getHardestWordsForReviewByUnit(track, unit, limit)
     suspend fun countAll(): Int = dao.countAll()
 }

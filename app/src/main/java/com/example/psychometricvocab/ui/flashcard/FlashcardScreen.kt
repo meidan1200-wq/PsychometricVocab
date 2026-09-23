@@ -43,6 +43,10 @@ fun FlashcardScreen(
     val appState = LocalAppState.current
     val isHebrew = appState.isHebrew
 
+    val context = LocalContext.current
+    val tts = remember { TtsHelper(context) }
+    DisposableEffect(tts) { onDispose { tts.shutdown() } }
+
     var memorizePhase by remember { mutableStateOf(if (mode == "memorize") "loop" else "test") }
     var playbackSpeed by remember { mutableStateOf(1f) } // 1x, 2x, 4x
 
@@ -94,9 +98,35 @@ fun FlashcardScreen(
                         onBack = onBack
                     )
                 }
-                words.isEmpty() -> {
+                words.isEmpty() && state.isLoading -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = Yellow)
+                    }
+                }
+                words.isEmpty() -> {
+                    // Loaded but nothing to practice (e.g. no hard words yet, or unit fully sorted)
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = if (mode == "memorize") {
+                                if (isHebrew) "אין עדיין מילים קשות לתרגול" else "No hard words to practice yet"
+                            } else {
+                                if (isHebrew) "אין מילים חדשות כאן" else "No new words here"
+                            },
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(24.dp))
+                        YellowButton(
+                            text = if (isHebrew) "חזור" else "Back",
+                            onClick = onBack,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
 
@@ -146,6 +176,7 @@ fun FlashcardScreen(
                                     word = displayWord,
                                     cardIndex = state.currentIndex,
                                     totalCards = state.total,
+                                    tts = tts,
                                     onSwipeKnown = { vm.onSwipe(true) },
                                     onSwipeUnknown = { vm.onSwipe(false) }
                                 )

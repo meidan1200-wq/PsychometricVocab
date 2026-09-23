@@ -25,8 +25,11 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Check for updates on startup
-        val updateManager = UpdateManager(this, "https://raw.githubusercontent.com/meidan1200-wq/PsychometricVocab/master/update.json")
-        updateManager.checkForUpdates()
+        // Check for updates on a fresh start only, not on every recreation (rotation, theme
+        // change, returning after the process was killed)
+        if (savedInstanceState == null) {
+            val updateManager = UpdateManager(this, "https://raw.githubusercontent.com/meidan1200-wq/PsychometricVocab/master/update.json")
+            updateManager.checkForUpdates()
+        }
     }
 }

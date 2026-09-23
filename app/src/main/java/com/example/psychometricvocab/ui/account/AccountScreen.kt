@@ -50,7 +50,11 @@ fun AccountScreen(
         if (uri != null) {
             // Grant persistent read permission to avoid SecurityException on restart
             val flag = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-            context.contentResolver.takePersistableUriPermission(uri, flag)
+            try {
+                context.contentResolver.takePersistableUriPermission(uri, flag)
+            } catch (e: SecurityException) {
+                // Some providers don't offer persistable grants; the image still works this session
+            }
             imageUri = uri
         }
     }

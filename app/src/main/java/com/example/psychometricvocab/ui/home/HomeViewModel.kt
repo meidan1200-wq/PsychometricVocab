@@ -5,8 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.psychometricvocab.data.VocabDatabase
 import com.example.psychometricvocab.data.VocabRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 
 data class HomeUiState(
     val totalWords: Int = 0,
@@ -18,16 +18,20 @@ data class HomeUiState(
 class HomeViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = VocabRepository(VocabDatabase.getInstance(app).wordDao())
 
-    private val _uiState = MutableStateFlow(HomeUiState())
-    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    private val track = MutableStateFlow<String?>(null)
 
-    fun loadData(track: String) {
-        viewModelScope.launch {
+    // One upstream per track (flatMapLatest cancels the previous track's queries) and it only
+    // runs while the screen is visible (WhileSubscribed), instead of piling up a new
+    // never-ending collector every time HomeScreen is shown.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val uiState: StateFlow<HomeUiState> = track
+        .filterNotNull()
+        .flatMapLatest { t ->
             combine(
-                repo.getTotalCount(track),
-                repo.getKnownCount(track),
-                repo.getAllUnits(track),
-                repo.getHardestWordsCount(track)
+                repo.getTotalCount(t),
+                repo.getKnownCount(t),
+                repo.getAllUnits(t),
+                repo.getHardestWordsCount(t)
             ) { total, known, units, hardest ->
                 HomeUiState(
                     totalWords = total,
@@ -35,7 +39,11 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                     units = units,
                     upcomingReviews = hardest
                 )
-            }.collect { _uiState.value = it }
+            }
         }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
+
+    fun loadData(track: String) {
+        this.track.value = track
     }
 }
