@@ -11,6 +11,14 @@
 - Review reports from IT and QA and decide what happens next.
 - Releases: bump `versionCode`/`versionName` in `app/build.gradle.kts`, update `update.json`, then merge to `master` **only with the owner's approval**.
 
+## What Cloud QA can and can't do (it lives in the cloud)
+- **It cannot build the Android app.** The cloud blocks `dl.google.com` (the Android SDK and Google Maven host), so Compose, Room and AndroidX code never compiles there. It can only compile and test plain Kotlin/JVM code (for example `SrsEngine` and `Word`) on its own JVM harness.
+- It cannot reach the PC, the emulator or local files.
+- It cannot message anyone. It can receive `SendMessage` only while its session is awake, and it isn't listed in `ListAgents` while asleep. It answers only by pushing to the branch with a HANDOFF entry.
+- So: **any Android code QA writes is unverified until IT builds it.** Every QA code push goes straight to IT (pull, `assembleDebug testDebugUnitTest`, emulator checklist) before anything else builds on it, and never to release without IT's OK.
+- Best use of QA: code review, bug hunting, pure-logic code and tests, docs, and well-scoped fixes that IT then verifies. Keep build-sensitive work (Gradle/dependency changes, big Compose refactors) local, or split it into small pushes so a build break is easy to trace.
+- QA sometimes goes beyond its brief (2026-09-23: asked for an audit report, it pushed 16 fixes). Be explicit in assignments: "report only" or "fix and push".
+
 ## Rules
 - You have the final word between agents; the owner outranks you.
 - Resolve disagreements quickly; don't let debates drag on.
