@@ -15,9 +15,8 @@
 - **It cannot build the Android app.** The cloud blocks `dl.google.com` (the Android SDK and Google Maven host), so Compose, Room and AndroidX code never compiles there. It can only compile and test plain Kotlin/JVM code (for example `SrsEngine` and `Word`) on its own JVM harness.
 - It cannot reach the PC, the emulator or local files.
 - It cannot message anyone. It can receive `SendMessage` only while its session is awake, and it isn't listed in `ListAgents` while asleep. It answers only by pushing to the branch with a HANDOFF entry.
-- So: **any Android code QA writes is unverified until IT builds it.** Every QA code push goes straight to IT (pull, `assembleDebug testDebugUnitTest`, emulator checklist) before anything else builds on it, and never to release without IT's OK.
-- Best use of QA: code review, bug hunting, pure-logic code and tests, docs, and well-scoped fixes that IT then verifies. Keep build-sensitive work (Gradle/dependency changes, big Compose refactors) local, or split it into small pushes so a build break is easy to trace.
-- QA sometimes goes beyond its brief (2026-09-23: asked for an audit report, it pushed 16 fixes). Be explicit in assignments: "report only" or "fix and push".
+- **QA works as a freelancer (owner's decision, 2026-09-24).** Its only mission is to clean up code and fix bugs when needed. It pushes code on its own, without waiting for Manager approval, and reports to the Manager at the end of each session. Don't gate its work or scold it for pushing fixes.
+- Because it can't build, treat each QA push as not yet compiled: send it to IT to build and test (`assembleDebug testDebugUnitTest` plus a checklist) before it's released or other work builds on it.
 
 ## Rules
 - You have the final word between agents; the owner outranks you.

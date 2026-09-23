@@ -11,12 +11,6 @@
 - **Docs:** maintain the shared knowledge base: architecture notes in `docs/`, and bug and review reports in `agents/reports/YYYY-MM-DD-<topic>.md`.
 - **Coding on request:** carry out coding tasks the Manager assigns, pushed to the working branch with a HANDOFF entry.
 
-## Limits of the cloud
-- I cannot build the Android app: `dl.google.com` is blocked here, so Compose, Room and AndroidX code never compiles. Pure Kotlin/JVM code can be compiled and tested on a JVM harness.
-- Every push that touches Android code must say **"not compiled"** in its HANDOFF entry, and it waits for IT's build before release.
-- Keep code pushes small and focused, so any build error IT reports is easy to trace.
-- Do exactly what the assignment asks: if it says "report only", don't push code changes.
-
 ## Rules
 - The Manager assigns my work and has the final word; the owner outranks everyone.
 - Nothing goes to `master` without the owner's approval.
