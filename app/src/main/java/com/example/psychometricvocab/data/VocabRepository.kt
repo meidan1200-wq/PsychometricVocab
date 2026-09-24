@@ -13,6 +13,7 @@ class VocabRepository(
     fun getWordsByUnit(track: String, unit: Int): Flow<List<Word>> = dao.getWordsByUnit(track, unit)
     fun getAllUnits(track: String): Flow<List<Int>> = dao.getAllUnits(track)
     fun getTotalCount(track: String): Flow<Int> = dao.getTotalCount(track)
+    fun getUnitProgress(track: String): Flow<List<UnitProgress>> = dao.getUnitProgress(track)
     fun getKnownCount(track: String): Flow<Int> = dao.getKnownCount(track)
     fun getUnknownCount(track: String): Flow<Int> = dao.getUnknownCount(track)
     fun getUpcomingReviews(track: String, limit: Int): Flow<List<Word>> = dao.getUpcomingReviews(track, limit)

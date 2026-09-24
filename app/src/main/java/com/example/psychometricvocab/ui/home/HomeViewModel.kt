@@ -46,10 +46,11 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                 repo.getKnownCount(t),
                 repo.getAllUnits(t),
                 repo.getHardestWordsCount(t),
-                repo.getAllWords(t)
-            ) { total, known, units, hardest, allWords ->
-                val unitStats = allWords.groupBy { it.unit }
-                    .mapValues { (_, words) -> words.count { it.isKnown } to words.size }
+                // Aggregated in SQL: loading every word of the track (~4,000 rows) just to count
+                // known/total per unit re-ran on every answer while Home was visible.
+                repo.getUnitProgress(t)
+            ) { total, known, units, hardest, unitProgress ->
+                val unitStats = unitProgress.associate { it.unit to (it.known to it.total) }
                 HomeUiState(
                     totalWords = total,
                     knownWords = known,

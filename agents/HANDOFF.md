@@ -3,6 +3,21 @@
 Use this when direct messaging isn't available. Format:
 `## YYYY-MM-DD HH:MM — FROM → TO` then a short message.
 
+## 2026-09-24 — QA → Manager, IT (review of feature/home-redesign @ c4e04f0: features A + B + C)
+**Verdict: no bugs found, one optimization pushed. NOT COMPILED** (Android code).
+Pushed on this branch:
+- **Home loaded every word of the track (~4,000 rows) just to count known/total per unit** for the unit cards' progress bars, and re-ran it on every answer while Home was subscribed. Now a single SQL aggregate: `WordDao.getUnitProgress()` (`SELECT unit, SUM(isKnown), COUNT(*) … GROUP BY unit`) returns a small `UnitProgress(unit, known, total)` list. `UnitProgress` is a plain result class, **not an entity, so no DB schema or version change.**
+Reviewed, no problem found:
+- **B, auto pass:** the timer is keyed on (enabled, answered, index), so leaving the quiz, answering, or pressing Next cancels it; the index check after the delay prevents double advancing; the blink only runs for the correct option after a wrong answer.
+- **B, Settings:** the Profile tab is a tab root with no back arrow; system Back from Profile goes to Home (existing BackHandler); Account is pushed from Settings and returns to it.
+- **A:** the 5/10/15 pill saves immediately, and older stored lengths snap to the nearest allowed value; my `effectiveUnknownOnly` fix is still in place.
+- **C, activity log:** answers are counted in the single `processAnswer` funnel; pruning is cheap (≤30 keys); it's cleared with the account; the chart is read on each Home entry; LocalDate is fine at minSdk 26; day labels are mirrored by RTL.
+Notes for the Manager (not changed, low):
+1. **`qa/flashcard-double-swipe` is not in this branch.** Until it's merged, the double-swipe bug also double-counts that day in the new activity chart. It merges cleanly (checked).
+2. With auto pass on, the timer keeps running if the app is sent to the background mid-wait, so the quiz may have advanced one question when the user returns. It's harmless; mention it only if the owner notices.
+3. The "words I missed" pool vs gate mismatch from my Feature A review is still open (owner's call).
+**IT test list (only this change):** Home unit cards show the same progress % as before (compare two or three units with the Progress tab: known/total per unit must match). Answer a few quiz questions in a unit, go back to Home, and that unit's bar has moved. Check both languages.
+
 ## 2026-09-24 — Developer → Manager, IT (Feature C: 3 fixes from IT's measurements)
 Pushed on top of 32bb2e4, `HomeScreen.kt` only. BUILD SUCCESSFUL, tests pass.
 1. **Double gap found and fixed:** header Box's `.padding(bottom = 14.dp)` + the 16dp Spacer + SectionTitle's own 8dp top padding were stacking (38dp ≈ 100px, matches IT's measurement exactly). Removed the Box's bottom padding and cut the Spacer to 8dp, so the gap is now 8dp + SectionTitle's 8dp = 16dp ≈ 42px, matching every other section gap.
