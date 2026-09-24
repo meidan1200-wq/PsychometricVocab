@@ -1,6 +1,7 @@
 package com.example.psychometricvocab
 
 import android.app.Activity
+import android.app.Application
 import android.app.AlertDialog
 import android.app.DownloadManager
 import android.content.BroadcastReceiver
@@ -11,7 +12,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.os.Handler
+import android.os.Bundle
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import androidx.core.content.FileProvider
@@ -28,6 +31,7 @@ class UpdateManager(private val context: Context, private val updateJsonUrl: Str
     private val executor = Executors.newSingleThreadExecutor()
     private val handler = Handler(Looper.getMainLooper())
     private var downloadId: Long = -1
+    private var pendingInstallCallbacks: Application.ActivityLifecycleCallbacks? = null
 
     fun checkForUpdates() {
         executor.execute {
@@ -152,6 +156,14 @@ class UpdateManager(private val context: Context, private val updateJsonUrl: Str
     }
 
     private fun installApk(context: Context) {
+        // Without "install unknown apps" permission the installer just shows a Settings link and,
+        // once the user grants it and comes back, finishes without installing (seen on API 36).
+        // So ask for the permission ourselves and install when the app resumes with it granted,
+        // reusing the APK we already downloaded.
+        if (!appContext.packageManager.canRequestPackageInstalls()) {
+            requestInstallPermissionThenInstall()
+            return
+        }
         try {
             val file = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "update.apk")
             if (!file.exists()) {
@@ -176,5 +188,33 @@ class UpdateManager(private val context: Context, private val updateJsonUrl: Str
             Log.e("UpdateManager", "Failed to install APK", e)
             Toast.makeText(context, "Failed to start installation", Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun requestInstallPermissionThenInstall() {
+        val app = appContext as Application
+        if (pendingInstallCallbacks == null) {
+            val callbacks = object : Application.ActivityLifecycleCallbacks {
+                override fun onActivityResumed(activity: Activity) {
+                    if (appContext.packageManager.canRequestPackageInstalls()) {
+                        app.unregisterActivityLifecycleCallbacks(this)
+                        pendingInstallCallbacks = null
+                        installApk(appContext)
+                    }
+                }
+                override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+                override fun onActivityStarted(activity: Activity) {}
+                override fun onActivityPaused(activity: Activity) {}
+                override fun onActivityStopped(activity: Activity) {}
+                override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+                override fun onActivityDestroyed(activity: Activity) {}
+            }
+            pendingInstallCallbacks = callbacks
+            app.registerActivityLifecycleCallbacks(callbacks)
+        }
+        Log.i("UpdateManager", "Install permission missing, opening settings")
+        Toast.makeText(appContext, "Allow installs from this app, then come back to finish the update", Toast.LENGTH_LONG).show()
+        val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${appContext.packageName}"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        appContext.startActivity(intent)
     }
 }
