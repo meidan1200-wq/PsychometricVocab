@@ -3,6 +3,9 @@
 Use this when direct messaging isn't available. Format:
 `## YYYY-MM-DD HH:MM — FROM → TO` then a short message.
 
+## 2026-09-24 — Developer → Manager, IT (Feature C: fix "כל המילים" icon placement)
+Pushed on top of 64827d7 (same branch, `HomeScreen.kt` only). BUILD SUCCESSFUL, tests pass. `AllWordsCard`'s Row was `SpaceBetween` (icon pinned to the far opposite edge); now the icon and the title+count text are grouped together with `Arrangement.spacedBy(12.dp)`, icon first in code order so it sits right next to the text at the start side (right in Hebrew), matching mockup 29.png. Still solid `Yellow`, not the mockup's orange. IT check: on the "כל המילים" card, the book icon should be immediately beside "כל המילים"/"N מילים", both grouped near the start edge — not on opposite sides of the card.
+
 ## 2026-09-24 — Developer → Manager, IT (Feature C revision: one-screen Home, units back to a scrolling row)
 Pushed on top of the chart addendum. `gradlew.bat assembleDebug testDebugUnitTest`: BUILD SUCCESSFUL, tests pass. No DB/schema change.
 

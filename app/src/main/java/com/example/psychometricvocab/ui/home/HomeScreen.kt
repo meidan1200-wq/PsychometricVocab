@@ -304,13 +304,21 @@ private fun AllWordsCard(total: Int, isHebrew: Boolean, onClick: () -> Unit, mod
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Yellow)
     ) {
+        // Icon sits right next to the text, both grouped at the start side (right in Hebrew) —
+        // not spread to opposite corners like before.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Icon(
+                Icons.AutoMirrored.Filled.MenuBook,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(28.dp)
+            )
             Column {
                 Text(
                     text = if (isHebrew) "כל המילים" else "All Words",
@@ -325,12 +333,6 @@ private fun AllWordsCard(total: Int, isHebrew: Boolean, onClick: () -> Unit, mod
                     color = TextPrimary.copy(alpha = 0.75f)
                 )
             }
-            Icon(
-                Icons.AutoMirrored.Filled.MenuBook,
-                contentDescription = null,
-                tint = TextPrimary,
-                modifier = Modifier.size(32.dp)
-            )
         }
     }
 }
