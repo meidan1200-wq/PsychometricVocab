@@ -16,8 +16,15 @@ class SubScreenCodecTest {
             FlashcardKey(unit = 7, mode = "memorize"),
             QuizKey(unit = null, unknownOnly = false),
             QuizKey(unit = 3, unknownOnly = true),
-            QuizKey(unit = null, unknownOnly = false, isReviewMode = true)
+            QuizKey(unit = null, unknownOnly = false, isReviewMode = true),
+            QuizKey(unit = 4, unknownOnly = false, useSavedPreference = true),
+            QuizKey(unit = null, unknownOnly = false, useSavedPreference = true)
         ).forEach { assertEquals(it, roundTrip(it)) }
+    }
+
+    @Test
+    fun quizKeySavedBeforeUseSavedPreferenceExistedStillRestores() {
+        assertEquals(QuizKey(unit = 2, unknownOnly = true), SubScreenCodec.decode("quiz|2|true|false"))
     }
 
     @Test

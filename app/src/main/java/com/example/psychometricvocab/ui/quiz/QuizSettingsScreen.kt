@@ -25,6 +25,7 @@ import com.example.psychometricvocab.ui.components.VocabTopBar
 import com.example.psychometricvocab.ui.components.YellowButton
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 
@@ -67,6 +68,13 @@ fun QuizSettingsScreen(
     LaunchedEffect(appState.track, selectedUnit) {
         unknownOnly = quizPrefs.getUnknownOnly(appState.track, selectedUnit) ?: false
     }
+
+    // Gate matches the quiz length: there's no point offering a "words I missed" quiz shorter
+    // than a full one. Derived rather than written back into `unknownOnly` during composition:
+    // the hard-word count starts at 0 until the DB answers, and the old write-back reset the
+    // saved per-unit "missed" choice to "all words" before the real count arrived.
+    val hasEnoughHardWords = hardestWordsCount >= quizLength
+    val effectiveUnknownOnly = unknownOnly && hasEnoughHardWords
 
     Scaffold(
         topBar = {
@@ -157,17 +165,10 @@ fun QuizSettingsScreen(
                     )
                     Spacer(Modifier.height(8.dp))
 
-                    // Gate matches the quiz length below: there's no point offering a
-                    // "words I missed" quiz shorter than a full one.
-                    val hasEnoughHardWords = hardestWordsCount >= quizLength
-                    if (!hasEnoughHardWords && unknownOnly) {
-                        unknownOnly = false
-                    }
-
                     FilterOptionRow(
                         label = if (isHebrew) "כל המילים" else "All words",
                         subtitle = if (isHebrew) "מבחן על כל המילים" else "Quiz on all words",
-                        selected = !unknownOnly,
+                        selected = !effectiveUnknownOnly,
                         enabled = true,
                         onClick = { unknownOnly = false }
                     )
@@ -179,7 +180,7 @@ fun QuizSettingsScreen(
                         } else {
                             if (isHebrew) "תרגול מילים קשות" else "Practice difficult words"
                         },
-                        selected = unknownOnly,
+                        selected = effectiveUnknownOnly,
                         enabled = hasEnoughHardWords,
                         onClick = { if (hasEnoughHardWords) unknownOnly = true }
                     )
@@ -211,7 +212,8 @@ fun QuizSettingsScreen(
                     }
                     Slider(
                         value = quizLength.toFloat(),
-                        onValueChange = { quizLength = it.toInt() },
+                        // roundToInt: stepped slider values are floats like 8.9999994, and toInt() truncated them to the step below
+                        onValueChange = { quizLength = it.roundToInt() },
                         onValueChangeFinished = {
                             // Save as soon as the owner lets go of the thumb, not only on Start:
                             // otherwise leaving the screen without starting a quiz lost the change.
@@ -231,8 +233,8 @@ fun QuizSettingsScreen(
                 text = if (isHebrew) "התחל מבחן!" else "Start Quiz!",
                 onClick = {
                     quizPrefs.setQuizLength(quizLength)
-                    quizPrefs.setUnknownOnly(appState.track, selectedUnit, unknownOnly)
-                    onStartQuiz(selectedUnit, unknownOnly)
+                    quizPrefs.setUnknownOnly(appState.track, selectedUnit, effectiveUnknownOnly)
+                    onStartQuiz(selectedUnit, effectiveUnknownOnly)
                 },
                 modifier = Modifier.fillMaxWidth()
             )

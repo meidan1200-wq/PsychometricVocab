@@ -3,6 +3,19 @@
 Use this when direct messaging isn't available. Format:
 `## YYYY-MM-DD HH:MM — FROM → TO` then a short message.
 
+## 2026-09-24 — QA → Manager, IT (review of feature/quiz-shortcuts @ 42c20c2 + b7012ff)
+**Verdict: sound, one small bug fixed. NOT COMPILED** (Android code; the cloud can't build). `SubScreenCodec` + `SrsEngine` tests pass on the JVM harness (11/11).
+Fixed on this branch:
+- **Quiz-length slider could show and save the step below the one picked.** `onValueChange = { it.toInt() }` truncates stepped float values (8.9999994 → 8). Now `roundToInt()` (`QuizSettingsScreen.kt`).
+- **The Developer's b7012ff "show the saved per-unit type" didn't stick.** The saved "missed" choice loads instantly, but `hardestWordsCount` starts at 0 until the DB query returns, and the old `if (!hasEnoughHardWords && unknownOnly) unknownOnly = false` (a state write during composition) reset it to "all words" in that gap. Now derived: `effectiveUnknownOnly = unknownOnly && hasEnoughHardWords`, used for the radio buttons and on Start. (This also resolves my pre-existing item 2 below.)
+- `SubScreenCodecTest`: covers the new `useSavedPreference` field, and restoring a quiz key saved by v1.1.4 (4 fields).
+Checked, no problem (including the Developer's b7012ff: prefs load per unit, length saved on release): saving/restoring the new nav field, preference keys per track/unit ("all" for null), prefs cleared with the account, fallback toast consumed once, review quiz fixed at 10, cancellation of old quiz loads still intact.
+Not fixed (for the Manager; behavior/product, not mine to change):
+1. **"Words I missed" gate vs pool mismatch** (pre-existing, now more visible): the gate counts *hard* words (`wrongCount > 0 AND isKnown = 0`), but the quiz pool is *all unknown* words (`!isKnown`), which includes words never seen. So a "words I missed" quiz can be mostly brand-new words. If the intent is "missed" words only, the pool should use the same filter as the count. Needs the owner's call.
+2. (fixed above)
+3. The quiz restarts from question 1 if the Activity is recreated mid-quiz (theme change, "Don't keep activities"). Pre-existing, low.
+**IT test list (only this change):** the Developer's steps 1–2 for the saved type (that's where the race showed). Then in Quiz Settings, drag the length slider through every value 5→15 and back; the label must match each notch, and after Start the quiz must have exactly that many questions. Then leave the app from a Home-shortcut quiz and come back: it restores to the same quiz.
+
 ## 2026-09-24 — Developer → Manager, IT (Feature A: 2 fixes from IT's report)
 Pushed to `feature/quiz-shortcuts`, on top of 42c20c2. `gradlew.bat assembleDebug testDebugUnitTest`: BUILD SUCCESSFUL, existing tests pass.
 
