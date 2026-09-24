@@ -19,7 +19,7 @@ Owned by the Manager. Format: `- [ ] task — owner — status`.
 
 ## Features approved by the owner 2026-09-24 (Developer), in this order
 - [x] **A. `feature/quiz-shortcuts`** (5938776: Developer + QA fixes, IT OK; waiting for the owner's merge approval): Home unit cards start a quiz directly; per-unit remembered quiz type (2 types, default "כל המילים", persisted); quiz length selector 5–15 (default 10, persisted) in quiz settings; the "לחזרה" card starts a 10-word review quiz — Developer
-- [ ] **B. `feature/settings-auto-advance`** (in progress, branched from A): the avatar opens a Settings screen (Account + preferences); "auto pass" toggle (right: short pause; wrong: mark it, blink the correct answer green, about 2–3 s, then next) — Developer
+- [ ] **B. `feature/settings-auto-advance`** (efce6bf, IT OK 10/10; waiting for QA review and the owner's merge approval): the avatar opens a Settings screen (Account + preferences); "auto pass" toggle (right: short pause; wrong: mark it, blink the correct answer green, about 2–3 s, then next) — Developer
 - [ ] **C. Home cleanup, proposal only** (2 options sent to the owner): remove the quick actions that duplicate the bottom bar; calmer, fewer colors. The Developer sends design options and the owner picks before any code — Developer
 - Not needed now (owner): the Learn tab's content, remembering the language, slow first launch, Hebrew update dialog.
 - [ ] Owner decision: should the "רק מילים שלא ידעתי" quiz pool use only missed words (wrongCount>0), matching its gate? Today it's all not-known words (QA finding)
