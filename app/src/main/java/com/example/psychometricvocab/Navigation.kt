@@ -13,6 +13,7 @@ import com.example.psychometricvocab.ui.progress.ProgressScreen
 import com.example.psychometricvocab.ui.quiz.QuizScreen
 import com.example.psychometricvocab.ui.quiz.QuizSettingsScreen
 import com.example.psychometricvocab.ui.account.AccountScreen
+import com.example.psychometricvocab.ui.settings.SettingsScreen
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -137,6 +138,13 @@ fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui
                 subScreen is AccountKey -> {
                     AccountScreen(onBack = { subScreen = null })
                 }
+                // ── Settings sub-screen ──────────────────────────────────
+                subScreen is SettingsKey -> {
+                    SettingsScreen(
+                        onGoToAccount = { subScreen = AccountKey },
+                        onBack = { subScreen = null }
+                    )
+                }
                 // ── Tab roots ────────────────────────────────────────────
                 else -> when (currentTab) {
                     0 -> {
@@ -149,7 +157,7 @@ fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui
                                 currentTab = 4 
                             },
                             onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) },
-                            onAvatarClick = { subScreen = AccountKey }
+                            onAvatarClick = { subScreen = SettingsKey }
                         )
                     }
                     1 -> {
@@ -171,7 +179,7 @@ fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui
                                 currentTab = 4 
                             },
                             onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) },
-                            onAvatarClick = { subScreen = AccountKey }
+                            onAvatarClick = { subScreen = SettingsKey }
                         )
                     }
                     3 -> {
@@ -186,7 +194,7 @@ fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui
                         ProgressScreen(
                             autoExpandUnit = progressExpandUnit,
                             onBack = null,
-                            onAvatarClick = { subScreen = AccountKey }
+                            onAvatarClick = { subScreen = SettingsKey }
                         )
                     }
                     else -> {
@@ -199,7 +207,7 @@ fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui
                                 currentTab = 4 
                             },
                             onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) },
-                            onAvatarClick = { subScreen = AccountKey }
+                            onAvatarClick = { subScreen = SettingsKey }
                         )
                     }
                 }

@@ -12,6 +12,7 @@ class SubScreenCodecTest {
             null,
             QuizSettingsKey,
             AccountKey,
+            SettingsKey,
             FlashcardKey(unit = null),
             FlashcardKey(unit = 7, mode = "memorize"),
             QuizKey(unit = null, unknownOnly = false),

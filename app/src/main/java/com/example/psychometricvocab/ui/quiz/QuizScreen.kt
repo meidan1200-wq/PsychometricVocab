@@ -2,6 +2,9 @@ package com.example.psychometricvocab.ui.quiz
 
 import android.speech.tts.TextToSpeech
 import androidx.compose.animation.*
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -25,10 +28,12 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.psychometricvocab.LocalAppState
+import com.example.psychometricvocab.data.AppPreferences
 import com.example.psychometricvocab.theme.*
 import com.example.psychometricvocab.ui.components.VocabTopBar
 import com.example.psychometricvocab.ui.components.WordProgressBar
 import com.example.psychometricvocab.ui.components.YellowButton
+import kotlinx.coroutines.delay
 import java.util.Locale
 
 @Composable
@@ -110,6 +115,31 @@ fun QuizScreen(
                 else -> {
                     val currentQuestion = state.currentQuestion
                     if (currentQuestion != null) {
+                        // Read once per screen: Settings is a separate sub-screen, so the
+                        // preference can't change while a quiz is open.
+                        val autoPassEnabled = remember { AppPreferences(context).isAutoPassEnabled() }
+                        val correctOptionId = remember(currentQuestion) {
+                            currentQuestion.options.firstOrNull { it.isCorrect }?.wordId
+                        }
+                        val answeredWrong = currentQuestion.answered && currentQuestion.selectedOptionId != correctOptionId
+
+                        // Auto pass: advance on its own after an answer. Correct → ~1s, wrong →
+                        // ~2.5s (so the blinking correct answer below is visible). Keyed on the
+                        // question index, so leaving the quiz (this composable leaves
+                        // composition) or answering a new question always cancels any pending
+                        // wait first. The index check after the delay is a second guard against
+                        // double-advancing if the manual Next button was pressed during the wait.
+                        val currentIndex = state.currentIndex
+                        LaunchedEffect(autoPassEnabled, currentQuestion.answered, currentIndex) {
+                            if (autoPassEnabled && currentQuestion.answered) {
+                                delay(if (answeredWrong) 2500L else 1000L)
+                                val latest = vm.state.value
+                                if (latest.currentIndex == currentIndex && !latest.sessionComplete) {
+                                    vm.onNext()
+                                }
+                            }
+                        }
+
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -202,8 +232,22 @@ fun QuizScreen(
                                     val optIsSelected = isAnswered && currentQuestion.selectedOptionId == quizOpt.wordId
                                     val optIsCorrect = quizOpt.isCorrect
 
+                                    // Auto pass + wrong answer: blink the correct option a few
+                                    // times during the (longer) wait before advancing, so it's
+                                    // obvious which one was right.
+                                    val shouldPulseCorrect = autoPassEnabled && isAnswered && optIsCorrect && answeredWrong
+                                    val pulseBg = if (shouldPulseCorrect) {
+                                        val transition = rememberInfiniteTransition(label = "correctPulse")
+                                        transition.animateColor(
+                                            initialValue = CorrectGreenLight,
+                                            targetValue = CorrectGreen,
+                                            animationSpec = infiniteRepeatable(tween(450), RepeatMode.Reverse),
+                                            label = "correctPulseColor"
+                                        ).value
+                                    } else null
+
                                     val bgColor = when {
-                                        isAnswered && optIsCorrect -> CorrectGreenLight
+                                        isAnswered && optIsCorrect -> pulseBg ?: CorrectGreenLight
                                         isAnswered && optIsSelected && !optIsCorrect -> WrongRedLight
                                         optIsSelected -> Yellow.copy(alpha = 0.15f)
                                         else -> White
