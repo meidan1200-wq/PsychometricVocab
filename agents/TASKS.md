@@ -10,8 +10,9 @@ Owned by the Manager. Format: `- [ ] task — owner — status`.
 - [ ] UI fix batch: system Back, Home tab highlight, "כרטיסיות" label, Account in Hebrew, quiz "no idea" pre-select — Manager — done in 453d99c, IT verified OK
 - [ ] OTA broken on Android 13+ (receiver NOT_EXPORTED, confirmed by IT) — Manager — fixed in 725b934, IT verified OK (full install, progress kept)
 - [x] OTA: first-time install permission loses the download — Manager — f269f8b, IT verified OK. Deny-path edge case fixed in b348b91, IT verified OK
-- [ ] Release v1.1.4 (all fixes so far, verified up to 6a87e1c) — Manager — ready, needs owner approval
-- [ ] Owner decision: the release APK is signed with the debug key
+- [x] Release v1.1.4 — Manager — released 2026-09-24: GitHub release v1.1.4, master = 314c35e. IT full regression OK, upgrade from 1.1.3 keeps progress
+- [x] Owner decision: keep the debug key until there's a server with user accounts (see DECISIONS)
 - [ ] Localize the update dialog, toasts and Play Protect guidance (currently English only) — unassigned
 - [ ] Startup: load the account profile off the main thread (8 s first splash) — unassigned
 - [ ] Owner decisions: what the "Learn" tab (tab 0) should show; dedupe quiz by headword; remember language across restarts
+- [ ] Flashcard memorize: one swipe once counted twice (seen once on the emulator, not reproduced in 3 retries) — QA — open; see HANDOFF 2026-09-24
