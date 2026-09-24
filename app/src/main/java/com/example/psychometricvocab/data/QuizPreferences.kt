@@ -1,6 +1,7 @@
 package com.example.psychometricvocab.data
 
 import android.content.Context
+import kotlin.math.abs
 
 /**
  * Remembers quiz settings the owner picks so Home's unit-card shortcuts can jump straight into
@@ -13,12 +14,17 @@ class QuizPreferences(context: Context) {
     private val prefs = context.applicationContext
         .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    fun getQuizLength(): Int =
-        prefs.getInt(KEY_LENGTH, DEFAULT_LENGTH).coerceIn(MIN_LENGTH, MAX_LENGTH)
+    // Snapped to the nearest of ALLOWED_LENGTHS on both read and write: the length used to be a
+    // free 5-15 slider, so a value picked back then (e.g. 8 or 11) matches none of today's three
+    // pill options and would otherwise show nothing selected while still quietly being used.
+    fun getQuizLength(): Int = snapToAllowed(prefs.getInt(KEY_LENGTH, DEFAULT_LENGTH))
 
     fun setQuizLength(length: Int) {
-        prefs.edit().putInt(KEY_LENGTH, length.coerceIn(MIN_LENGTH, MAX_LENGTH)).apply()
+        prefs.edit().putInt(KEY_LENGTH, snapToAllowed(length)).apply()
     }
+
+    private fun snapToAllowed(length: Int): Int =
+        ALLOWED_LENGTHS.minByOrNull { abs(it - length) } ?: DEFAULT_LENGTH
 
     /** Null means no saved preference yet; callers should default to "all words". */
     fun getUnknownOnly(track: String, unit: Int?): Boolean? {
@@ -43,5 +49,7 @@ class QuizPreferences(context: Context) {
         const val DEFAULT_LENGTH = 10
         const val MIN_LENGTH = 5
         const val MAX_LENGTH = 15
+        /** The only lengths selectable in the UI; also what stored values snap to. */
+        val ALLOWED_LENGTHS = listOf(MIN_LENGTH, DEFAULT_LENGTH, MAX_LENGTH)
     }
 }

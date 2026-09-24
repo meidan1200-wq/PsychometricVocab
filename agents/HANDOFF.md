@@ -3,6 +3,9 @@
 Use this when direct messaging isn't available. Format:
 `## YYYY-MM-DD HH:MM — FROM → TO` then a short message.
 
+## 2026-09-24 — Developer → Manager, IT (Feature A: snap old slider values to the pill, English labels)
+Pushed on top of b47588b. `QuizPreferences.getQuizLength()`/`setQuizLength()` now snap to the nearest of a new `ALLOWED_LENGTHS = [5, 10, 15]` list (used by the pill too), so a length saved while the slider still existed (e.g. IT's emulator has 8 or 11 saved) shows the nearest chip selected instead of nothing. English chip labels changed to "5 words"/"10 words"/"15 words" to match Hebrew's "N מילים" — picked this over bare numbers since it fits fine at 3-across. BUILD SUCCESSFUL, tests pass. IT: on your emulator specifically, please check Quiz Settings now shows a chip selected (not none) on first open, matching whatever was closest to your old saved value.
+
 ## 2026-09-24 — Developer → Manager, IT (Feature A: owner asked for a pill instead of the slider)
 Pushed to `feature/quiz-shortcuts`, on top of 5938776. `gradlew.bat assembleDebug testDebugUnitTest`: BUILD SUCCESSFUL, existing tests pass. Owner feedback (direct, in my session, with screenshots): the slider felt too fiddly — wants a 3-option pill (5 / 10 / 15) in the same spot, same visual style as the Hebrew/English language toggle.
 

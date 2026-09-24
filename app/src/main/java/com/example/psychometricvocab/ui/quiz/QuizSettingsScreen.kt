@@ -209,13 +209,9 @@ fun QuizSettingsScreen(
                             .background(SurfaceGray)
                             .padding(4.dp)
                     ) {
-                        listOf(
-                            QuizPreferences.MIN_LENGTH,
-                            QuizPreferences.DEFAULT_LENGTH,
-                            QuizPreferences.MAX_LENGTH
-                        ).forEach { length ->
+                        QuizPreferences.ALLOWED_LENGTHS.forEach { length ->
                             QuizLengthChip(
-                                label = if (isHebrew) "$length מילים" else "$length",
+                                label = if (isHebrew) "$length מילים" else "$length words",
                                 selected = quizLength == length,
                                 modifier = Modifier.weight(1f),
                                 onClick = {
