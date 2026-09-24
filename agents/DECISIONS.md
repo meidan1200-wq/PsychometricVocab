@@ -7,7 +7,7 @@ QA no longer pushes to the working branch. It pushes to the feature branch it's 
 
 ## 2026-09-24 — Home redesign (Feature C), owner spec from a Gemini mockup
 - Take from the mockup: one "מרכז המידע שלי" stats card (known / total / to review); "מסלולי למידה" unit cards (icon, title, progress bar, "התחל"), 2 per row, ALL units; "כל המילים" as a bigger full-width card in the middle, as in the mockup.
-- Do NOT take: duplicated review text ("כרטיסיות לחזרה" plus "0 לחזרה"); the mockup's colors (stay yellow and white); the mockup's HE|EN switch (the language pill stays exactly as it is, same place); the daily-activity chart (not requested).
+- Do NOT take: duplicated review text ("כרטיסיות לחזרה" plus "0 לחזרה"); the mockup's colors (stay yellow and white); the mockup's HE|EN switch (the language pill stays exactly as it is, same place); ~~the daily-activity chart~~. *Update: the owner wants the daily-activity chart. It goes below the units and shows the last 7 days from a new per-day answer counter in SharedPreferences (no schema change), starting empty after the update.*
 - Remove "פעולות מהירות". Keep the Home button icon and the other tab names.
 - The "לומדות" tab becomes "פרופיל" (it opens Settings). Remove the avatar button from the Progress screen.
 - Owner answers: flashcard swipe direction stays; "רק מילים שלא ידעתי" isn't touched for now; the Profile tab covers Settings access.
