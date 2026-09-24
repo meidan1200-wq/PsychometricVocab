@@ -194,11 +194,15 @@ class UpdateManager(private val context: Context, private val updateJsonUrl: Str
         val app = appContext as Application
         if (pendingInstallCallbacks == null) {
             val callbacks = object : Application.ActivityLifecycleCallbacks {
+                // One-shot: the first resume is the user coming back from Settings. If they declined,
+                // drop the pending install, so a later grant doesn't pop the installer up unprompted.
                 override fun onActivityResumed(activity: Activity) {
+                    app.unregisterActivityLifecycleCallbacks(this)
+                    pendingInstallCallbacks = null
                     if (appContext.packageManager.canRequestPackageInstalls()) {
-                        app.unregisterActivityLifecycleCallbacks(this)
-                        pendingInstallCallbacks = null
                         installApk(appContext)
+                    } else {
+                        Log.i("UpdateManager", "Install permission declined, update cancelled")
                     }
                 }
                 override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
