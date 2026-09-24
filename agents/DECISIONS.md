@@ -5,6 +5,9 @@ Important decisions, newest on top. Format: `## YYYY-MM-DD — decision` then wh
 ## 2026-09-24 — The Manager does the final merge and every version
 QA no longer pushes to the working branch. It pushes to the feature branch it's reviewing, or to `qa/<topic>`. The Developer pushes to `feature/<name>`. The Manager gives the final verdict, merges into `claude/charming-planck-v3dszd`, and creates every version and release (releases need the owner's approval). Decided by the owner.
 
+## 2026-09-24 — Owner-approved feature set A/B/C (see TASKS.md)
+Quiz types stay 2 ("כל המילים" / "רק מילים שלא ידעתי"); "מילים קשות" meant the same thing. The quiz length is 5–15 (default 10), never 20 ("exhausting"). The review quiz is fixed at 10 for now. The Home redesign is optional and comes after the features, as a proposal first.
+
 ## 2026-09-24 — Keep signing with the debug key; release v1.1.4
 The owner chose to keep the debug key for now (not a store app yet). Progress will later be saved on a real server with user accounts, which will make a future key change painless. Until then, **every release must be built on the owner's PC** (`~/.android/debug.keystore`), or existing installs will refuse the update. Release v1.1.4 was approved by the owner.
 

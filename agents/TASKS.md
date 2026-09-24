@@ -16,3 +16,9 @@ Owned by the Manager. Format: `- [ ] task — owner — status`.
 - [ ] Startup: load the account profile off the main thread (8 s first splash) — unassigned
 - [ ] Owner decisions: what the "Learn" tab (tab 0) should show; dedupe quiz by headword; remember language across restarts
 - [ ] Flashcard memorize: one swipe once counted twice (seen once on the emulator, not reproduced in 3 retries) — QA — open; see HANDOFF 2026-09-24
+
+## Features approved by the owner 2026-09-24 (Developer), in this order
+- [ ] **A. `feature/quiz-shortcuts`**: Home unit cards start a quiz directly; per-unit remembered quiz type (2 types, default "כל המילים", persisted); quiz length selector 5–15 (default 10, persisted) in quiz settings; the "לחזרה" card starts a 10-word review quiz — Developer
+- [ ] **B. `feature/settings-auto-advance`**: the avatar opens a Settings screen (Account + preferences); "auto pass" toggle (right: short pause; wrong: mark it, blink the correct answer green, about 2–3 s, then next) — Developer
+- [ ] **C. Home cleanup, proposal only**: remove the quick actions that duplicate the bottom bar; calmer, fewer colors. The Developer sends design options and the owner picks before any code — Developer
+- Not needed now (owner): the Learn tab's content, remembering the language, slow first launch, Hebrew update dialog.
