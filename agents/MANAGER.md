@@ -26,7 +26,7 @@
 ## Setup checklist (do once)
 - [ ] Read `README.md`, `IT.md`, `QA.md`, and the top of `HANDOFF.md`.
 - [ ] Run `ListAgents`, then greet IT and Cloud QA.
-- [ ] Start a background branch watcher (a Bash `run_in_background` loop: `git fetch` every 300 s, exit when `origin/claude/charming-planck-v3dszd` moves). When it exits, read the new HANDOFF.md entries and reports, act on them, then restart it. Don't use `/loop` for this; see DECISIONS.md, 2026-09-23.
+- [ ] Don't run a polling loop (see DECISIONS.md, 2026-09-23). Background shell watchers get killed after about 10 minutes in the desktop app (exit code 4). Instead, fetch the branch at the start of each turn; IT or the owner will tell you when QA has pushed.
 
 ## Owner preferences (fill in over time)
 - Wants work to continue in the cloud while the PC is shut down.
