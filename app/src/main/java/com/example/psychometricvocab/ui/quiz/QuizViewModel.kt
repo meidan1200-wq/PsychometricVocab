@@ -33,10 +33,7 @@ data class QuizUiState(
     val wrongCount: Int = 0,
     val isLoading: Boolean = true,
     val currentTrack: String? = null,
-    val currentUnit: Int? = null,
-    // One-shot: set when a Home shortcut asked for "words I missed" but there weren't enough,
-    // so the quiz silently fell back to all words. QuizScreen shows a Toast then consumes it.
-    val fellBackToAllWords: Boolean = false
+    val currentUnit: Int? = null
 ) {
     val currentQuestion get() = questions.getOrNull(currentIndex)
     val total get() = questions.size
@@ -80,7 +77,6 @@ class QuizViewModel(app: Application) : AndroidViewModel(app) {
         loadJob = viewModelScope.launch {
             val length = quizPrefs.getQuizLength()
             var effectiveUnknownOnly = unknownOnly
-            var fellBack = false
             if (useSavedPreference) {
                 val saved = quizPrefs.getUnknownOnly(track, unit) ?: false
                 effectiveUnknownOnly = if (saved) {
@@ -89,7 +85,8 @@ class QuizViewModel(app: Application) : AndroidViewModel(app) {
                     } else {
                         repo.getHardestWordsCountByUnit(track, unit).first()
                     }
-                    if (hardCount >= length) true else { fellBack = true; false }
+                    // Not enough "missed" words: silently use all words (owner found a notice annoying)
+                    hardCount >= length
                 } else {
                     false
                 }
@@ -111,15 +108,10 @@ class QuizViewModel(app: Application) : AndroidViewModel(app) {
                     questions = questions,
                     isLoading = false,
                     // Nothing to ask (e.g. no hard words yet): show the result screen, not a blank page
-                    sessionComplete = questions.isEmpty(),
-                    fellBackToAllWords = fellBack
+                    sessionComplete = questions.isEmpty()
                 )
             }
         }
-    }
-
-    fun consumeFallbackNotice() {
-        _state.update { it.copy(fellBackToAllWords = false) }
     }
 
     private fun buildQuestion(word: Word, allWords: List<Word>, track: String): QuizQuestion {
