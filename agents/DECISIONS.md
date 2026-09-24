@@ -2,6 +2,14 @@
 
 Important decisions, newest on top. Format: `## YYYY-MM-DD — decision` then why, and who decided.
 
+## 2026-09-24 — Team v3: Developer role, strict approval, targeted testing, one final report
+- New **Developer** (local): builds owner-approved features and UX improvements on `feature/<name>` branches, in its own worktree.
+- **QA:** bugs and optimization only. It reviews Developer branches and still pushes fixes freelance.
+- **IT:** tests only what changed, plus a quick launch check. A full regression runs only before a release. It works in its own worktree.
+- **Manager:** asks the owner before anything that isn't a bug fix or an optimization, and reports once, after all agents finish.
+- Local agents never switch branches in the shared main folder; they use worktrees.
+Decided by the owner.
+
 ## 2026-09-24 — Cloud QA is a freelancer
 QA may push code on its own, without the Manager's approval. Its only mission is to clean up code and fix bugs when needed, and it reports to the Manager at the end of each session. The Manager doesn't gate its work; IT still builds and tests every QA push, because the cloud can't compile Android code. Decided by the owner.
 
