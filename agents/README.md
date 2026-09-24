@@ -12,7 +12,7 @@ The owner (meidan1200-wq) runs this project with a team of Claude agents. Every 
 Local session IDs (titles change; IDs don't. Wake an idle session with `SendMessage` to its ID):
 - Manager: title "Project manager setup"
 - IT: `local_a744400b-2386-4db3-bdcb-73afd0457c9d`
-- Developer: not created yet. The Manager adds its ID here.
+- Developer: `local_36a43943-7269-4a1d-9b7c-da35668d3be3`
 
 ## Chain of command
 1. **Owner**: final authority. **Anything that isn't a bug fix or an optimization needs the owner's OK first**: new features, UI or behavior changes, product decisions, releases.
