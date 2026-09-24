@@ -3,6 +3,37 @@
 Use this when direct messaging isn't available. Format:
 `## YYYY-MM-DD HH:MM — FROM → TO` then a short message.
 
+## 2026-09-24 — Developer → Manager, IT (Feature B pushed: Settings + Auto pass)
+**Pushed to `feature/settings-auto-advance`, branched from `feature/quiz-shortcuts` @ 5938776** (so it carries Feature A's quiz code; rebase/merge onto `claude/charming-planck-v3dszd` is the Manager's call once A lands). `gradlew.bat assembleDebug testDebugUnitTest`: BUILD SUCCESSFUL, all tests pass (incl. a new `SettingsKey` codec round-trip). No DB schema change.
+
+**What changed (user-visible):**
+1. New **Settings screen** (`ui/settings/SettingsScreen.kt`). The avatar circle on the Progress top bar (and Home's `onAvatarClick`, wired the same way) now opens "הגדרות / Settings" instead of jumping straight to Account. It has an **Account** row (tap → the existing Account screen, unchanged) and a **Preferences** section for things that will grow over time.
+   - **Note for IT:** I found Home doesn't currently *render* a visible avatar at all — `onAvatarClick`/`profile` were already unused/dead in `HomeScreen.kt` before this feature. I wired Home's callback to Settings for consistency (so it's correct if an avatar is ever added there), but there's nothing to tap on Home today — **please test the Settings entry point via the Progress screen's avatar**, not Home. Flagging this as a separate pre-existing gap, not something I fixed as part of B.
+2. **"מעבר אוטומטי" / Auto pass** switch in Preferences, default OFF, persisted in a new `data/AppPreferences.kt` (plain SharedPreferences, `app_prefs`, separate from `QuizPreferences` since it's general app settings, not quiz-specific). Cleared in `AccountViewModel.removeAccount()` alongside the other prefs.
+3. When ON, in a quiz after answering:
+   - Correct → normal green feedback, auto-advances after **~1s**.
+   - Wrong → wrong option stays red, the **correct option blinks green** (a looping light/dark green pulse) for **~2.5s**, then auto-advances.
+   - Last question still goes to the results screen as normal (same `onNext()` path).
+   - The manual "Next" button still works and skips the wait.
+   - When OFF, the quiz is byte-for-byte unchanged from before this feature.
+4. **Safety for leaving/backgrounding during the wait:** the auto-advance timer runs in a `LaunchedEffect` keyed on the question index — leaving the quiz screen (back, or navigating away) cancels it automatically via Compose's composition lifecycle, and answering/advancing to a new question always starts a fresh timer for that question rather than reusing a stale one. As a second guard, right before calling `onNext()` after the delay, it re-checks the live `QuizViewModel` state's `currentIndex` against the index captured when the timer started — if they differ (the manual button already advanced), it does nothing, so a race between the manual button and the timer can't advance twice. Going to the background doesn't dispose the composition, so the delay keeps counting and fires once when the app is foregrounded again — not a crash or a skip, just a normal single advance (possibly instant if the delay had already elapsed).
+
+**Files touched:** `data/AppPreferences.kt` (new), `ui/settings/SettingsScreen.kt` (new), `ui/quiz/QuizScreen.kt`, `NavigationKeys.kt`, `Navigation.kt`, `ui/account/AccountViewModel.kt`, `SubScreenCodecTest.kt`.
+
+**Test list for IT (only Feature B):**
+1. From the Progress screen, tap the avatar circle: Settings opens (not Account directly). Tap "חשבון"/"Account" inside Settings: the existing Account screen opens.
+2. In Settings, toggle Auto pass ON, back out, reopen Settings: it's still ON. **Restart the app** (kill and reopen), open Settings again: still ON — persistence check.
+3. Start a quiz with Auto pass ON. Answer correctly: green feedback, moves to the next question on its own after about a second.
+4. Same quiz, answer wrong: your wrong pick shows red, the correct option blinks green a few times, and it moves on after about 2.5 seconds (noticeably longer than the correct-answer case).
+5. Auto pass ON, on the **last question**: answering (correct or wrong) auto-advances straight to the results screen, not a blank state or a crash.
+6. Auto pass ON: answer a question, then immediately tap the manual "Next" button before the auto-advance fires — should advance once (to the next question, not skip one), no double-advance.
+7. Auto pass ON: answer a question, then press the in-app back arrow (or leave the quiz another way) before the wait finishes — no crash, no question skipped if you start a new quiz right after.
+8. Auto pass ON: answer a question, then send the app to background (Home button) during the wait, and bring it back before/after the wait would have elapsed — no crash, exactly one advance, not two.
+9. Auto pass OFF (the default, and re-confirm after toggling it back off): quiz behaves exactly as before this feature — no blinking, no auto-advance, manual Next required.
+10. Delete the account, then reopen Settings: Auto pass should show OFF again (prefs cleared).
+
+**What I did not check:** real device testing (emulator-only, and I don't have emulator access myself — same caveat as Feature A); TalkBack/accessibility on the blinking option; extremely short quizzes (1 question) with Auto pass on the last-question path specifically.
+
 ## 2026-09-24 — QA → Manager, IT (review of feature/quiz-shortcuts @ 42c20c2 + b7012ff)
 **Verdict: sound, one small bug fixed. NOT COMPILED** (Android code; the cloud can't build). `SubScreenCodec` + `SrsEngine` tests pass on the JVM harness (11/11).
 Fixed on this branch:

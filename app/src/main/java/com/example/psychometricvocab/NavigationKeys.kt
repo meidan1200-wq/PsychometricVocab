@@ -14,6 +14,7 @@ import kotlinx.serialization.Serializable
     val useSavedPreference: Boolean = false
 )
 @Serializable data object AccountKey
+@Serializable data object SettingsKey
 
 /**
  * Encodes the current sub-screen as a plain String so it can be stored in the
@@ -29,6 +30,7 @@ object SubScreenCodec {
         is QuizKey -> "quiz|${screen.unit ?: ""}|${screen.unknownOnly}|${screen.isReviewMode}|${screen.useSavedPreference}"
         QuizSettingsKey -> "quizSettings"
         AccountKey -> "account"
+        SettingsKey -> "settings"
         else -> NONE
     }
 
@@ -47,6 +49,7 @@ object SubScreenCodec {
             )
             "quizSettings" -> QuizSettingsKey
             "account" -> AccountKey
+            "settings" -> SettingsKey
             else -> null
         }
     }
