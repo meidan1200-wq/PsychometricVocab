@@ -19,8 +19,10 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -45,6 +47,11 @@ fun HomeScreen(
     val activityDays by vm.activityDays.collectAsStateWithLifecycle()
     val appState = LocalAppState.current
     val isHebrew = appState.isHebrew
+
+    // A fraction of the actual screen width instead of a guessed fixed dp: ~2 cards fill the
+    // row with a small peek of the third, matching the mockup's proportion on whatever device
+    // this actually renders on, rather than a number picked by eye on one assumed screen size.
+    val unitCardWidth = (LocalConfiguration.current.screenWidthDp * 0.46f).dp
 
     LaunchedEffect(appState.track) {
         vm.loadData(appState.track)
@@ -143,7 +150,7 @@ fun HomeScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         // ─── "מסלולי למידה" / Learning paths ────────────────────────────────
         // One horizontal scrolling row, ALL units — back from the vertical grid: the owner
@@ -164,12 +171,13 @@ fun HomeScreen(
                     known = known,
                     total = total,
                     isHebrew = isHebrew,
+                    width = unitCardWidth,
                     onClick = { onGoToQuizShortcut(unit) }
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         AllWordsCard(
             total = state.totalWords,
@@ -178,19 +186,18 @@ fun HomeScreen(
             modifier = Modifier.padding(horizontal = 20.dp)
         )
 
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         // ─── "הפעילות היומית" / Daily activity ─────────────────────────────
-        // Taller than before (fixed height, not weight-based: this Column scrolls, and weight
-        // doesn't mix with an unbounded-height scrollable Column) so it uses the room the
-        // tighter pass freed up, closer to the mockup's proportion instead of a small sliver.
+        // Fixed height, not weight-based: this Column scrolls, and weight doesn't mix with an
+        // unbounded-height scrollable Column.
         ActivityChartCard(
             days = activityDays,
             isHebrew = isHebrew,
             modifier = Modifier.padding(horizontal = 20.dp)
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
     }
 }
 
@@ -227,54 +234,56 @@ private fun StatColumn(
     }
 }
 
-// About half the screen width each, so ~2 fit on screen with a small peek of the third — the
-// visual cue that the row scrolls. Icon sits beside the title on one line, not stacked above it.
+// Width is a fraction of the actual screen (see unitCardWidth above), so ~2 fit on screen with
+// a small peek of the third — the visual cue that the row scrolls. Icon sits beside the title
+// on one line, not stacked above it.
 @Composable
 private fun UnitPathCard(
     unit: Int,
     known: Int,
     total: Int,
     isHebrew: Boolean,
+    width: Dp,
     onClick: () -> Unit
 ) {
     val pct = if (total > 0) known.toFloat() / total else 0f
     Card(
         modifier = Modifier
-            .width(200.dp)
+            .width(width)
             .shadow(3.dp, RoundedCornerShape(18.dp))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = White)
     ) {
-        Column(modifier = Modifier.padding(18.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(38.dp)
                         .clip(CircleShape)
                         .background(Yellow.copy(alpha = 0.2f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = YellowDark, modifier = Modifier.size(22.dp))
+                    Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = YellowDark, modifier = Modifier.size(20.dp))
                 }
                 Text(
                     text = if (isHebrew) "יחידה $unit" else "Unit $unit",
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 17.sp,
+                    fontSize = 16.sp,
                     color = TextPrimary,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(14.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(8.dp)
+                    .height(7.dp)
                     .clip(RoundedCornerShape(4.dp))
                     .background(SurfaceGray)
             ) {
@@ -285,7 +294,7 @@ private fun UnitPathCard(
                         .background(Yellow)
                 )
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
             Text(
                 text = if (isHebrew) "התחל" else "Start",
                 fontWeight = FontWeight.Bold,
@@ -352,7 +361,7 @@ private fun ActivityChartCard(days: List<Pair<LocalDate, Int>>, isHebrew: Boolea
         colors = CardDefaults.cardColors(containerColor = White),
         modifier = modifier.fillMaxWidth().shadow(3.dp, RoundedCornerShape(20.dp))
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = if (isHebrew) "הפעילות היומית" else "Daily activity",
                 style = MaterialTheme.typography.titleMedium,
@@ -367,11 +376,9 @@ private fun ActivityChartCard(days: List<Pair<LocalDate, Int>>, isHebrew: Boolea
                     color = TextSecondary
                 )
             }
-            Spacer(Modifier.height(20.dp))
-            // Taller bar area (was a short 48dp sliver): fills the room the tighter section
-            // spacing above freed up, closer to the mockup's proportion.
+            Spacer(Modifier.height(14.dp))
             Row(
-                modifier = Modifier.fillMaxWidth().height(150.dp),
+                modifier = Modifier.fillMaxWidth().height(130.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 days.forEach { (date, count) ->

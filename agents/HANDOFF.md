@@ -3,6 +3,15 @@
 Use this when direct messaging isn't available. Format:
 `## YYYY-MM-DD HH:MM — FROM → TO` then a short message.
 
+## 2026-09-24 — Developer → Manager, IT (Feature C: sizing refinement, owner sent this directly to me)
+The owner messaged me directly (with the mockup screenshot again) asking to fine-tune sizes/gaps closer to the mockup's proportions, explicitly no color or structural changes, and reiterated **no vertical scrolling**. Pushed on top of 8ad1f6d, `HomeScreen.kt` only. BUILD SUCCESSFUL, tests pass.
+
+- **Unit card width is now responsive** (`screenWidthDp * 0.46f`) instead of a fixed 200dp guess — matches "about half the screen width" on whatever the actual device width is, rather than a number I picked assuming one screen size. This was the main thing worth fixing properly rather than guessing another fixed dp.
+- Trimmed a few paddings back down slightly for a safety margin against scrolling: section gaps 18dp→16dp, unit-card internal padding 18dp→16dp (icon 40→38dp, title 17→16sp, progress bar 8→7dp), chart internal padding 20dp→16dp and bar-row height 150dp→130dp, final bottom spacer 12dp→8dp. Net effect: still noticeably bigger/more spaced than the original tight pass, just not quite as large as my previous push, to leave headroom.
+- No color changes, no structural changes (still one scrolling unit row, כל המילים below it, chart below that) — sizing/spacing only, per the owner's explicit ask.
+
+**Test list (same as before, re-check just the sizing):** Home fits one screen without scrolling in both languages; unit cards are close to half-screen width with ~2 visible + a peek of the third; gaps between stats/units/כל המילים/chart look even; chart still reads as the tallest section, not a thin sliver.
+
 ## 2026-09-24 — Developer → Manager, IT (Feature C: scale Home up to use the spare room)
 Pushed on top of 469c503, `HomeScreen.kt` only. BUILD SUCCESSFUL, tests pass. Section gaps 6-10dp → 18dp (stats↔units, units↔כל המילים, כל המילים↔chart), row spacing between unit cards 10dp→16dp; unit cards scaled up (172dp→200dp wide, bigger icon circle/title, thicker progress bar, more internal padding, same icon-beside-title shape); daily-activity chart bar area 48dp→150dp tall with matching padding, so it now fills most of the remaining space down toward the bottom bar instead of leaving a big empty gap. Note: I could not use `Modifier.weight()` to make the chart dynamically fill exactly to the bottom bar — this Column has `verticalScroll` for the small-screen safety net, and Compose doesn't allow `weight` inside an unbounded-height scrollable Column (it throws at runtime) — so this is a generous fixed height instead, sized by inspection against the screenshots you sent, not a live measurement.
 
