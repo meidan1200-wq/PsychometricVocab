@@ -3,11 +3,13 @@ package com.example.psychometricvocab.ui.home
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.psychometricvocab.data.ActivityLog
 import com.example.psychometricvocab.data.VocabDatabase
 import com.example.psychometricvocab.data.VocabRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
+import java.time.LocalDate
 
 data class HomeUiState(
     val totalWords: Int = 0,
@@ -20,8 +22,17 @@ data class HomeUiState(
 
 class HomeViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = VocabRepository(VocabDatabase.getInstance(app).wordDao())
+    private val activityLog = ActivityLog(app)
 
     private val track = MutableStateFlow<String?>(null)
+
+    // Not part of `uiState`: it's language-independent and a plain synchronous SharedPreferences
+    // read, not a DB query, so it doesn't need to ride the per-track combine/reload below (that
+    // would blank the chart to HomeUiState()'s default every time the language toggle is hit).
+    // Cheap by design: read once whenever Home shows (loadData runs fresh each time HomeScreen
+    // re-enters composition), not on every answer.
+    private val _activityDays = MutableStateFlow<List<Pair<LocalDate, Int>>>(emptyList())
+    val activityDays: StateFlow<List<Pair<LocalDate, Int>>> = _activityDays.asStateFlow()
 
     // One upstream per track (flatMapLatest cancels the previous track's queries) and it only
     // runs while the screen is visible (WhileSubscribed), instead of piling up a new
@@ -53,5 +64,6 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadData(track: String) {
         this.track.value = track
+        _activityDays.value = activityLog.getLast7Days()
     }
 }

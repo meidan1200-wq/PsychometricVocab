@@ -3,6 +3,7 @@ package com.example.psychometricvocab.ui.quiz
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.psychometricvocab.data.ActivityLog
 import com.example.psychometricvocab.data.QuizPreferences
 import com.example.psychometricvocab.data.SrsEngine
 import com.example.psychometricvocab.data.VocabDatabase
@@ -43,7 +44,7 @@ data class QuizUiState(
 }
 
 class QuizViewModel(app: Application) : AndroidViewModel(app) {
-    private val repo = VocabRepository(VocabDatabase.getInstance(app).wordDao())
+    private val repo = VocabRepository(VocabDatabase.getInstance(app).wordDao(), ActivityLog(app))
     private val quizPrefs = QuizPreferences(app)
 
     private val _state = MutableStateFlow(QuizUiState())

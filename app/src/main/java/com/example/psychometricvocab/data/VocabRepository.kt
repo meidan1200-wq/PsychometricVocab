@@ -2,7 +2,12 @@ package com.example.psychometricvocab.data
 
 import kotlinx.coroutines.flow.Flow
 
-class VocabRepository(private val dao: WordDao) {
+class VocabRepository(
+    private val dao: WordDao,
+    // Optional: only the ViewModels that actually process answers (Quiz, Flashcard) pass one in,
+    // so every other VocabRepository(dao) construction site is untouched.
+    private val activityLog: ActivityLog? = null
+) {
 
     fun getAllWords(track: String): Flow<List<Word>> = dao.getAllWords(track)
     fun getWordsByUnit(track: String, unit: Int): Flow<List<Word>> = dao.getWordsByUnit(track, unit)
@@ -26,6 +31,7 @@ class VocabRepository(private val dao: WordDao) {
     suspend fun processAnswer(word: Word, isCorrect: Boolean, isQuiz: Boolean = false, isNotSure: Boolean = false) {
         val updated = SrsEngine.processAnswer(word, isCorrect, isQuiz, isNotSure)
         dao.updateWord(updated)
+        activityLog?.recordAnswer()
     }
 
     suspend fun getWordsToReview(track: String, limit: Int): List<Word> = dao.getWordsToReview(track, limit)

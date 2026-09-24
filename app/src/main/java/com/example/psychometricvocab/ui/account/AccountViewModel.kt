@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.psychometricvocab.data.AccountManager
 import com.example.psychometricvocab.data.AccountProfile
+import com.example.psychometricvocab.data.ActivityLog
 import com.example.psychometricvocab.data.AppPreferences
 import com.example.psychometricvocab.data.QuizPreferences
 import com.example.psychometricvocab.data.VocabDatabase
@@ -16,6 +17,7 @@ class AccountViewModel(app: Application) : AndroidViewModel(app) {
     private val database = VocabDatabase.getInstance(app)
     private val quizPrefs = QuizPreferences(app)
     private val appPrefs = AppPreferences(app)
+    private val activityLog = ActivityLog(app)
 
     val profile: StateFlow<AccountProfile> = accountManager.profile
 
@@ -29,6 +31,7 @@ class AccountViewModel(app: Application) : AndroidViewModel(app) {
         accountManager.clearAccount()
         quizPrefs.clear()
         appPrefs.clear()
+        activityLog.clear()
         // Reset learning progress only. clearAllTables() also deleted the vocabulary itself, and
         // since seeding only happens when the database is first opened, the app showed 0 words
         // until it was restarted.

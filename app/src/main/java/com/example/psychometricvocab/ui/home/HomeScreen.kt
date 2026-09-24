@@ -26,6 +26,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.psychometricvocab.LocalAppState
 import com.example.psychometricvocab.theme.*
 import com.example.psychometricvocab.ui.components.LanguageToggle
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.Locale
 
 @Composable
 fun HomeScreen(
@@ -36,6 +40,7 @@ fun HomeScreen(
     vm: HomeViewModel = viewModel()
 ) {
     val state by vm.uiState.collectAsStateWithLifecycle()
+    val activityDays by vm.activityDays.collectAsStateWithLifecycle()
     val appState = LocalAppState.current
     val isHebrew = appState.isHebrew
 
@@ -170,6 +175,15 @@ fun HomeScreen(
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // ─── "הפעילות היומית" / Daily activity ─────────────────────────────
+        ActivityChartCard(
+            days = activityDays,
+            isHebrew = isHebrew,
+            modifier = Modifier.padding(horizontal = 20.dp)
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
     }
@@ -338,4 +352,84 @@ private fun AllWordsCard(total: Int, isHebrew: Boolean, onClick: () -> Unit) {
             )
         }
     }
+}
+
+// Oldest-to-newest in code order. The Row this renders inherits the screen's own
+// LayoutDirection (RTL for Hebrew, same mechanism the stat columns above already rely on), so
+// "today" lands at the reading-direction end automatically — no manual reversing needed.
+@Composable
+private fun ActivityChartCard(days: List<Pair<LocalDate, Int>>, isHebrew: Boolean, modifier: Modifier = Modifier) {
+    val hasActivity = days.any { it.second > 0 }
+    val maxCount = (days.maxOfOrNull { it.second } ?: 0).coerceAtLeast(1)
+
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = White),
+        modifier = modifier.fillMaxWidth().shadow(3.dp, RoundedCornerShape(20.dp))
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                text = if (isHebrew) "הפעילות היומית" else "Daily activity",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+            if (!hasActivity) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = if (isHebrew) "תרגל היום כדי לראות את הפעילות שלך" else "Practice today to see your activity",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().height(70.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                days.forEach { (date, count) ->
+                    Column(
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            contentAlignment = Alignment.BottomCenter
+                        ) {
+                            // A day with no activity still gets a thin flat sliver rather than
+                            // vanishing entirely, so the row reads as a baseline, not a gap.
+                            val fraction = (count.toFloat() / maxCount).coerceIn(0.05f, 1f)
+                            Box(
+                                modifier = Modifier
+                                    .width(16.dp)
+                                    .fillMaxHeight(fraction)
+                                    .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                    .background(if (count > 0) Yellow else SurfaceGray)
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = dayLabel(date, isHebrew),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun dayLabel(date: LocalDate, isHebrew: Boolean): String = if (isHebrew) {
+    when (date.dayOfWeek) {
+        DayOfWeek.SUNDAY -> "א׳"
+        DayOfWeek.MONDAY -> "ב׳"
+        DayOfWeek.TUESDAY -> "ג׳"
+        DayOfWeek.WEDNESDAY -> "ד׳"
+        DayOfWeek.THURSDAY -> "ה׳"
+        DayOfWeek.FRIDAY -> "ו׳"
+        DayOfWeek.SATURDAY -> "ש׳"
+    }
+} else {
+    date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH)
 }

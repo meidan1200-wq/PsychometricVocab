@@ -3,6 +3,26 @@
 Use this when direct messaging isn't available. Format:
 `## YYYY-MM-DD HH:MM — FROM → TO` then a short message.
 
+## 2026-09-24 — Developer → Manager, IT (Feature C addendum: daily-activity chart added)
+Pushed on top of the Home redesign commit. `gradlew.bat assembleDebug testDebugUnitTest`: BUILD SUCCESSFUL, tests pass. No DB schema change (per the spec: `Word` still has no timestamps).
+
+**What changed:** added "הפעילות היומית" / "Daily activity" back in, below the units section, per the owner's follow-up (this replaces my earlier "no chart added" from the first Feature C push).
+- New `data/ActivityLog.kt`: plain SharedPreferences, date string → answer count, pruned to the last ~30 days on every write. `recordAnswer()` is called from `VocabRepository.processAnswer` — the single funnel both `QuizViewModel` and `FlashcardViewModel` already go through for every quiz answer and flashcard know/don't-know swipe. `VocabRepository` takes it as an optional constructor param (`activityLog: ActivityLog? = null`) so every other `VocabRepository(dao)` construction site (Home, Progress, Quiz/Flashcard settings) is untouched — only the two ViewModels that actually process answers pass one in.
+- Home shows the last 7 days as a small yellow bar chart in a white card, today at the reading-direction end (this falls out for free from the app's existing `LayoutDirection.Rtl` mirroring for Hebrew — the same mechanism the stat columns already use — so I didn't need to manually reverse the list). Days are labeled lightly: א׳–ש׳ in Hebrew, Mon–Sun in English.
+- Empty state (fresh install/update, nothing recorded yet): every bar renders as a thin flat sliver (not invisible) plus a short hint, "תרגל היום כדי לראות את הפעילות שלך" / "Practice today to see your activity", shown above the chart.
+- Kept cheap per the spec: `HomeViewModel` reads `ActivityLog.getLast7Days()` once in `loadData()`, which already runs fresh every time Home re-enters composition (returning from a quiz or flashcards session), not on a continuous Flow/observer — no DB involved, just one SharedPreferences read.
+- Cleared in `AccountViewModel.removeAccount()` alongside the other prefs stores.
+
+**Files touched:** `data/ActivityLog.kt` (new), `data/VocabRepository.kt`, `ui/quiz/QuizViewModel.kt`, `ui/flashcard/FlashcardViewModel.kt`, `ui/home/HomeViewModel.kt`, `ui/home/HomeScreen.kt`, `ui/account/AccountViewModel.kt`.
+
+**Test list additions for IT (on top of the Feature C list already in this file):**
+1. Fresh install (or after clearing app data): Home shows the chart with 7 flat/empty bars and the "practice today" hint, not a crash or a blank card.
+2. Answer a few quiz questions, go back to Home: today's bar grows (taller / visibly more than the flat sliver), hint disappears once any day has activity.
+3. Do a few flashcard swipes (know/don't-know, either counts), go back to Home: today's bar increases further — confirms flashcards feed the same counter as quiz answers.
+4. **Restart the app**, check Home: today's (and any earlier day's) activity is still there — SharedPreferences persistence check.
+5. Delete the account, reopen Home: chart is back to the empty state (all flat, hint showing) — confirms `ActivityLog.clear()` ran.
+6. Both languages: day labels read א׳ ב׳ ג׳ ד׳ ה׳ ו׳ ש׳ under the bars in Hebrew (right-to-left, today on the left) and Mon–Sun-style abbreviations in English (left-to-right, today on the right) — bars should visually flow in the correct reading direction for each language.
+
 ## 2026-09-24 — Developer → Manager, IT (Feature C pushed: Home redesign)
 **Pushed to `feature/home-redesign`, branched from `origin/integration/v1.1.5` @ e96443a** (A + B merged). `gradlew.bat assembleDebug testDebugUnitTest`: BUILD SUCCESSFUL, all tests pass (SubScreenCodecTest updated for `SettingsKey`'s removal). No DB schema change.
 
