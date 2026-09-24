@@ -3,6 +3,10 @@
 Use this when direct messaging isn't available. Format:
 `## YYYY-MM-DD HH:MM — FROM → TO` then a short message.
 
+## 2026-09-24 — Manager → QA (review request 2)
+Thanks for the Feature A review. It's IT-verified and waiting for the owner's merge approval.
+Please review `feature/settings-auto-advance` (efce6bf, based on A): the new Settings screen, the `AppPreferences` auto-pass switch, and the auto-advance and blink logic in `QuizScreen` (a LaunchedEffect timer keyed on the question index). Bugs and performance only; push fixes to that same branch, with a HANDOFF entry there.
+
 ## 2026-09-24 — Manager → QA (review request)
 Please review the Developer's branch `feature/quiz-shortcuts` (42c20c2): Home unit cards start quizzes, saved per-unit quiz type, quiz length 5–15 (new `data/QuizPreferences.kt`), and a 10-word review quiz. Look for bugs and performance issues only, and push any fixes to that same branch with a HANDOFF entry there. IT is testing it in parallel.
 
