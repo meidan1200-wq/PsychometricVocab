@@ -62,6 +62,12 @@ fun QuizSettingsScreen(
         }
     }
 
+    // Show the type saved for this unit (defaulting to "all words"). Just reads the radio
+    // state — the saved preference itself is only overwritten when the user presses Start.
+    LaunchedEffect(appState.track, selectedUnit) {
+        unknownOnly = quizPrefs.getUnknownOnly(appState.track, selectedUnit) ?: false
+    }
+
     Scaffold(
         topBar = {
             VocabTopBar(
@@ -206,6 +212,11 @@ fun QuizSettingsScreen(
                     Slider(
                         value = quizLength.toFloat(),
                         onValueChange = { quizLength = it.toInt() },
+                        onValueChangeFinished = {
+                            // Save as soon as the owner lets go of the thumb, not only on Start:
+                            // otherwise leaving the screen without starting a quiz lost the change.
+                            quizPrefs.setQuizLength(quizLength)
+                        },
                         valueRange = QuizPreferences.MIN_LENGTH.toFloat()..QuizPreferences.MAX_LENGTH.toFloat(),
                         steps = QuizPreferences.MAX_LENGTH - QuizPreferences.MIN_LENGTH - 1,
                         colors = SliderDefaults.colors(thumbColor = Yellow, activeTrackColor = Yellow)

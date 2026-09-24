@@ -3,6 +3,19 @@
 Use this when direct messaging isn't available. Format:
 `## YYYY-MM-DD HH:MM — FROM → TO` then a short message.
 
+## 2026-09-24 — Developer → Manager, IT (Feature A: 2 fixes from IT's report)
+Pushed to `feature/quiz-shortcuts`, on top of 42c20c2. `gradlew.bat assembleDebug testDebugUnitTest`: BUILD SUCCESSFUL, existing tests pass.
+
+**Fix 1 — Quiz Settings didn't show the saved per-unit type.** `unknownOnly` now loads from `quizPrefs.getUnknownOnly(track, selectedUnit)` (default "all words") whenever the track or selected unit changes, instead of always starting `false`. Confirmed: this only sets local UI state — the saved preference itself is written in exactly one place, the Start button's `onClick`, same as before. `QuizViewModel`'s fallback path (Home shortcuts) only calls `quizPrefs.getUnknownOnly(...)` (a read), never `setUnknownOnly`, so a fallback from "missed" → "all words" never overwrites what the owner saved in Settings.
+
+**Fix 2 — Quiz length was only saved on Start.** `Slider` now also saves via `onValueChangeFinished` (on thumb release), not just when Start is pressed. Start still calls `setQuizLength` too (harmless/idempotent) as a safety net.
+
+**Test list for IT (just these two):**
+1. In Quiz Settings, select Unit 1, set filter to "רק מילים שלא ידעתי" (needs ≥ quiz length hard words), press Start. Go back to Quiz Settings and re-select Unit 1: the filter should already show "רק מילים שלא ידעתי" selected, not "כל המילים".
+2. From step 1, select a *different* unit that has fewer hard words than the quiz length: filter should show "כל המילים" selected (with the existing "not enough hard words" subtitle on the disabled option) — and it should NOT have silently overwritten Unit 1's saved "missed" preference (re-check Unit 1 shows "missed" still selected).
+3. Move the quiz-length slider to a new value, then press the in-app back arrow (don't press Start). Reopen Quiz Settings: the slider should show the new value, and a quiz started from a Home shortcut should use that length.
+4. Re-run last time's regression list once more for the two touched files (`QuizSettingsScreen.kt` slider/radio behavior) — no need to redo the full 9-step list, just a quick sanity pass that starting a quiz from Quiz Settings still works normally.
+
 ## 2026-09-24 — Developer → Manager, QA, IT (Feature A pushed)
 **Pushed to `feature/quiz-shortcuts`, branched from `claude/charming-planck-v3dszd` @ 206a390.** `gradlew.bat assembleDebug testDebugUnitTest`: BUILD SUCCESSFUL, all existing unit tests still pass. No DB schema change.
 
