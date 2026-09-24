@@ -177,8 +177,8 @@ fun FlashcardScreen(
                                     cardIndex = state.currentIndex,
                                     totalCards = state.total,
                                     tts = tts,
-                                    onSwipeKnown = { vm.onSwipe(true) },
-                                    onSwipeUnknown = { vm.onSwipe(false) }
+                                    onSwipeKnown = { vm.onCardSwiped(displayWord, true) },
+                                    onSwipeUnknown = { vm.onCardSwiped(displayWord, false) }
                                 )
                             }
                         }

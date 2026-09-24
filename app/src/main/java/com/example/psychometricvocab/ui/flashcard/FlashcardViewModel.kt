@@ -80,6 +80,15 @@ class FlashcardViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repo.processAnswer(current, isCorrect = isKnown) }
     }
 
+    /**
+     * A test-mode card reported its own swipe. Ignored unless [word] is still the current card,
+     * so a late callback from a card that is animating out can't answer the next card.
+     */
+    fun onCardSwiped(word: Word, isKnown: Boolean) {
+        if (_state.value.currentWord?.id != word.id) return
+        onSwipe(isKnown)
+    }
+
     /** Sort-mode row swiped. Ignores repeated callbacks for a word that was already sorted. */
     fun onSwipeWord(word: Word, isKnown: Boolean, isSortMode: Boolean = false, track: String = "", unit: Int? = null) {
         if (!isSortMode) {
