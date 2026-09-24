@@ -115,9 +115,13 @@ class UpdateManager(private val context: Context, private val updateJsonUrl: Str
 
             Toast.makeText(appContext, "Download started...", Toast.LENGTH_SHORT).show()
 
-            // Register receiver for when the download completes
+            // Register receiver for when the download completes.
+            // Must be EXPORTED: DOWNLOAD_COMPLETE is sent by the system DownloadManager (another
+            // process), so on API 33+ a NOT_EXPORTED receiver is silently skipped ("Exported Denial")
+            // and the installer never opens. Safe: onReceive only acts on our own downloadId and
+            // installs our own file, and the user still confirms the install.
             val receiverFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                Context.RECEIVER_NOT_EXPORTED
+                Context.RECEIVER_EXPORTED
             } else {
                 0
             }
@@ -135,6 +139,7 @@ class UpdateManager(private val context: Context, private val updateJsonUrl: Str
     private val downloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
+            Log.i("UpdateManager", "DOWNLOAD_COMPLETE id=$id (expecting $downloadId)")
             if (id == downloadId) {
                 installApk(context)
                 try {
@@ -149,7 +154,10 @@ class UpdateManager(private val context: Context, private val updateJsonUrl: Str
     private fun installApk(context: Context) {
         try {
             val file = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "update.apk")
-            if (!file.exists()) return
+            if (!file.exists()) {
+                Log.w("UpdateManager", "update.apk missing, cannot install")
+                return
+            }
 
             val uri = FileProvider.getUriForFile(
                 context,
@@ -162,6 +170,7 @@ class UpdateManager(private val context: Context, private val updateJsonUrl: Str
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
             }
 
+            Log.i("UpdateManager", "Launching installer for ${file.length()} bytes")
             context.startActivity(installIntent)
         } catch (e: Exception) {
             Log.e("UpdateManager", "Failed to install APK", e)
