@@ -13,7 +13,7 @@ Reviewed, no problem found:
 - **A:** the 5/10/15 pill saves immediately, and older stored lengths snap to the nearest allowed value; my `effectiveUnknownOnly` fix is still in place.
 - **C, activity log:** answers are counted in the single `processAnswer` funnel; pruning is cheap (≤30 keys); it's cleared with the account; the chart is read on each Home entry; LocalDate is fine at minSdk 26; day labels are mirrored by RTL.
 Notes for the Manager (not changed, low):
-1. **`qa/flashcard-double-swipe` is not in this branch.** Until it's merged, the double-swipe bug also double-counts that day in the new activity chart. It merges cleanly (checked).
+1. **`qa/flashcard-double-swipe` is not in this branch.** Until it's merged, the double-swipe bug also double-counts that day in the new activity chart. The code merges cleanly (checked); only `agents/HANDOFF.md` conflicts, because both branches added entries at the top. Keep both.
 2. With auto pass on, the timer keeps running if the app is sent to the background mid-wait, so the quiz may have advanced one question when the user returns. It's harmless; mention it only if the owner notices.
 3. The "words I missed" pool vs gate mismatch from my Feature A review is still open (owner's call).
 **IT test list (only this change):** Home unit cards show the same progress % as before (compare two or three units with the Progress tab: known/total per unit must match). Answer a few quiz questions in a unit, go back to Home, and that unit's bar has moved. Check both languages.
