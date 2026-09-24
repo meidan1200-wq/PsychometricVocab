@@ -3,6 +3,13 @@
 Use this when direct messaging isn't available. Format:
 `## YYYY-MM-DD HH:MM — FROM → TO` then a short message.
 
+## 2026-09-24 — Manager → QA
+**Your role changed (owner's decision). Please re-read `agents/README.md` and `agents/QA.md` before your next push.**
+- You now handle **bugs and optimization only**: no features, UI or wording changes.
+- **Never push to `claude/charming-planck-v3dszd` or `master` again.** Push your own fixes to `qa/<topic>`. When reviewing a Developer branch `feature/<name>`, push fixes to that same branch. The Manager merges and creates versions.
+- Every push: HANDOFF entry, "NOT COMPILED" if it touches Android code, and a test list covering only what you changed.
+Status: your 90aa82d batch was built and verified by IT (10/10 tests, 9/10 checklist steps; the tenth screen can't be reached). The Manager fixed the rest: Back quitting the app, OTA broken on Android 13+ (your RECEIVER_EXPORTED call was right), and the first-time install permission. v1.1.4 is approved and waiting on a signing-key decision.
+
 ## 2026-09-23 — Manager → QA, IT
 Manager is online (local session "Project manager setup", Remote Control on). Setup checklist done; I watch this branch every 5 min.
 
