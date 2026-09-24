@@ -3,6 +3,35 @@
 Use this when direct messaging isn't available. Format:
 `## YYYY-MM-DD HH:MM — FROM → TO` then a short message.
 
+## 2026-09-24 — Developer → Manager, IT (Feature C pushed: Home redesign)
+**Pushed to `feature/home-redesign`, branched from `origin/integration/v1.1.5` @ e96443a** (A + B merged). `gradlew.bat assembleDebug testDebugUnitTest`: BUILD SUCCESSFUL, all tests pass (SubScreenCodecTest updated for `SettingsKey`'s removal). No DB schema change.
+
+**What changed (user-visible), per the owner's mockup + `agents/DECISIONS.md` (2026-09-24, Home redesign):**
+1. **Header** (greeting, subtitle, Hebrew/English pill): unchanged — same position, same style. The mockup's "HE | EN" switch was not taken.
+2. **"מרכז המידע שלי" / My stats**: the 3 separate stat cards became one white card with 3 columns (ידועות/green check, סה"כ מילים/book, לחזרה/refresh), each with one icon, one number, one label — no second "0 לחזרה"-style line, which the owner explicitly rejected in the mockup. ידועות still taps to Progress (known filter), לחזרה still starts the fixed 10-word review quiz — both preserved from before.
+3. **"מסלולי למידה" / Learning paths**: unit cards redesigned (icon in a yellow-tinted circle, "יחידה N" — no invented names, a known/total progress bar, "התחל"/"Start"), 2 per row, for **all** units. "כל המילים" is a bigger full-width solid-yellow card, placed after the first row of 2 units, with the rest of the units in rows of 2 below it. Tapping any card (including "כל המילים") starts Feature A's quiz shortcut, same as before this redesign.
+4. **Removed "פעולות מהירות"** entirely (the 3 quick-action rows), and did not add a daily-activity chart.
+5. **Colors**: unit cards are white with yellow accents (icon circle, progress bar); "כל המילים" is solid yellow. No salmon or purple anywhere.
+6. **Bottom bar**: tab index 0 renamed "לומדות"/"Learn" → "פרופיל"/"Profile" with a person icon; it now shows the Feature B Settings screen as that tab's own root content (not a popup/pushed screen, so no back arrow there). Tapping "חשבון"/Account inside it still pushes the Account screen as a sub-screen; back from Account returns to the Profile tab. The centre Home icon and every other tab's name/icon are untouched.
+7. **Progress screen**: the avatar button is gone from its top bar (was already the only place it did anything). Home's `onAvatarClick` — already dead code before this feature, per Feature B's HANDOFF note — is now removed for real, since Settings is reached via the Profile tab.
+8. `VocabTopBar`'s nav-icon slot now shows a blank spacer instead of an avatar box when neither `onBack` nor `onAvatarClick` is given, instead of always rendering a non-functional avatar circle — this is what makes item 7 possible without deleting the avatar code path outright (kept generic in case a future screen wants it).
+
+**Files touched:** `ui/home/HomeScreen.kt` (rewritten), `ui/home/HomeViewModel.kt` (added per-unit `unitStats`), `ui/progress/ProgressScreen.kt`, `ui/settings/SettingsScreen.kt` (onBack now optional), `ui/components/Components.kt` (`VocabTopBar` nav-slot fallback, `VocabBottomNav` tab 0 relabeled), `Navigation.kt`, `NavigationKeys.kt` (`SettingsKey` removed — Settings is a tab root now, not a pushed sub-screen), `SubScreenCodecTest.kt`.
+
+**Test list for IT (only Feature C):**
+1. Home, both languages: header (greeting + HE/EN pill) unchanged in place/style; one "מרכז המידע שלי"/"My stats" card with 3 columns, one label each (no duplicated review text).
+2. Tap "ידועות"/Known → goes to Progress. Tap "לחזרה"/"To review" → starts the review quiz (10 words, unchanged from before).
+3. **Hebrew track (5 units):** "מסלולי למידה" shows unit 1+2 in a row, then a full-width yellow "כל המילים" card, then units 3+4 in a row, then unit 5 alone (half-width card, not stretched full width). **English track (7 units):** same pattern — 1+2, "All Words", 3+4, 5+6, 7 alone.
+4. Each unit card: icon circle, "יחידה N"/"Unit N" only (no other text), a progress bar that visibly reflects that unit's known/total (compare against the Progress screen's per-unit breakdown for the same numbers), "התחל"/"Start" at the bottom.
+5. Tap a unit card → starts a quiz on that unit directly (Feature A's shortcut behavior — saved type, fallback toast, etc. all still apply, this feature didn't touch that logic). Tap "כל המילים" → starts a quiz on all units.
+6. "פעולות מהירות"/"Quick Actions" is gone from Home entirely; no chart was added in its place.
+7. Colors: unit cards are white with yellow icon circle + yellow progress bar; "כל המילים" is solid yellow. Nothing salmon or purple anywhere on Home.
+8. Bottom bar: first tab now reads "פרופיל"/"Profile" with a person icon, not "לומדות"/"Learn" with a book icon. Tapping it shows the Settings screen (Account row + Auto pass switch) directly, no back arrow at the top. Tap "חשבון"/Account inside it → Account screen opens with a back arrow; pressing it returns to the Profile tab (still showing Settings, tab still highlighted as index 0). The centre Home icon and the Cards/Quiz/Progress tabs are all unchanged.
+9. Progress screen's top bar: no avatar circle anymore (just the title, blank space where it used to be).
+10. Restart the app after picking a unit's quiz type in Quiz Settings (Feature A), then tap that unit's card from the new Home layout — the saved-preference shortcut behavior from Feature A should still work exactly as before (this feature only changed layout/entry points, not that logic).
+
+**What I did not check:** real device/emulator visual verification (I don't have emulator access — same caveat as every prior feature); very small screens where 2-per-row unit cards might feel cramped; RTL edge cases in the "כל המילים" card's icon/text mirroring beyond what the layout system handles automatically (same mechanism as the pre-existing stat cards, not new code).
+
 ## 2026-09-24 — Developer → Manager, IT (Feature B pushed: Settings + Auto pass)
 **Pushed to `feature/settings-auto-advance`, branched from `feature/quiz-shortcuts` @ 5938776** (so it carries Feature A's quiz code; rebase/merge onto `claude/charming-planck-v3dszd` is the Manager's call once A lands). `gradlew.bat assembleDebug testDebugUnitTest`: BUILD SUCCESSFUL, all tests pass (incl. a new `SettingsKey` codec round-trip). No DB schema change.
 

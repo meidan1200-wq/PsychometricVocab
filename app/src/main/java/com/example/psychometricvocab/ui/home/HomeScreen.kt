@@ -3,11 +3,10 @@ package com.example.psychometricvocab.ui.home
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,7 +16,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -28,24 +26,18 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.psychometricvocab.LocalAppState
 import com.example.psychometricvocab.theme.*
 import com.example.psychometricvocab.ui.components.LanguageToggle
-import com.example.psychometricvocab.ui.components.YellowButton
 
 @Composable
 fun HomeScreen(
-    onGoToFlashcard: (Int?) -> Unit,
-    onGoToQuiz: () -> Unit,
     onGoToQuizShortcut: (Int?) -> Unit,
     onGoToProgress: (Int?) -> Unit,
     onGoToReview: () -> Unit,
-    onAvatarClick: () -> Unit,
     modifier: Modifier = Modifier,
-    vm: HomeViewModel = viewModel(),
-    accountVm: com.example.psychometricvocab.ui.account.AccountViewModel = viewModel()
+    vm: HomeViewModel = viewModel()
 ) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     val appState = LocalAppState.current
     val isHebrew = appState.isHebrew
-    val profile by accountVm.profile.collectAsStateWithLifecycle()
 
     LaunchedEffect(appState.track) {
         vm.loadData(appState.track)
@@ -64,11 +56,12 @@ fun HomeScreen(
                 .background(
                     Brush.verticalGradient(listOf(Yellow.copy(alpha = 0.15f), OffWhite))
                 )
-                .padding(bottom = 24.dp)
+                .padding(bottom = 20.dp)
         ) {
-
-
             Column(modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 72.dp)) {
+                // Greeting, subtitle and the Hebrew/English pill — unchanged from before the
+                // redesign, same position and style (the owner's mockup showed a different
+                // "HE | EN" switch here; that part of the mockup was not taken).
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -93,112 +86,121 @@ fun HomeScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Stats row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                // ─── "מרכז המידע שלי" / My stats — one card, 3 columns ─────────
+                // Replaces 3 separate stat cards. Deliberately just one label per column: the
+                // mockup's "כרטיסיות לחזרה" title plus a second "0 לחזרה" line under it was
+                // duplication the owner rejected.
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = White),
+                    modifier = Modifier.fillMaxWidth().shadow(3.dp, RoundedCornerShape(20.dp))
                 ) {
-                    StatCard(
-                        icon = Icons.Filled.CheckCircle,
-                        value = state.knownWords.toString(),
-                        label = if (isHebrew) "ידועות" else "Known",
-                        color = CorrectGreen,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onGoToProgress(-1) }
-                    )
-                    StatCard(
-                        icon = Icons.Filled.LibraryBooks,
-                        value = state.totalWords.toString(),
-                        label = if (isHebrew) "סה\"כ מילים" else "Total Words",
-                        color = Yellow,
-                        modifier = Modifier.weight(1f)
-                    )
-                    StatCard(
-                        icon = Icons.Filled.Refresh,
-                        value = state.upcomingReviews.toString(),
-                        label = if (isHebrew) "לחזרה" else "To review",
-                        color = WrongRed,
-                        modifier = Modifier.weight(1f),
-                        onClick = onGoToReview
-                    )
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Text(
+                            text = if (isHebrew) "מרכז המידע שלי" else "My stats",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            StatColumn(
+                                icon = Icons.Filled.CheckCircle,
+                                value = state.knownWords.toString(),
+                                label = if (isHebrew) "ידועות" else "Known",
+                                color = CorrectGreen,
+                                modifier = Modifier.weight(1f),
+                                onClick = { onGoToProgress(-1) }
+                            )
+                            StatColumn(
+                                icon = Icons.Filled.LibraryBooks,
+                                value = state.totalWords.toString(),
+                                label = if (isHebrew) "סה\"כ מילים" else "Total Words",
+                                color = Yellow,
+                                modifier = Modifier.weight(1f)
+                            )
+                            StatColumn(
+                                icon = Icons.Filled.Refresh,
+                                value = state.upcomingReviews.toString(),
+                                label = if (isHebrew) "לחזרה" else "To review",
+                                color = WrongRed,
+                                modifier = Modifier.weight(1f),
+                                onClick = onGoToReview
+                            )
+                        }
+                    }
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // ─── Units section ─────────────────────────────────────────────────
-        if (state.units.isNotEmpty()) {
-            SectionTitle(if (isHebrew) "יחידות לימוד" else "Study Units")
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(bottom = 8.dp)
-            ) {
-                // All units card
-                item {
-                    UnitCard(
-                        title = if (isHebrew) "כל המילים" else "All Words",
-                        subtitle = "${state.totalWords} ${if (isHebrew) "מילים" else "words"}",
-                        color = Yellow,
-                        onClick = { onGoToQuizShortcut(null) }
-                    )
-                }
-                items(state.units) { unit ->
-                    val colors = listOf(
-                        Color(0xFF6C63FF), // Purple
-                        Color(0xFF00BCD4), // Teal
-                        Color(0xFFFF7043), // Orange
-                        Color(0xFF8BC34A), // Light Green
-                        Color(0xFFE91E63), // Pink
-                        Color(0xFF3F51B5), // Indigo
-                        Color(0xFF009688)  // Dark Teal
-                    )
-                    UnitCard(
-                        title = if (isHebrew) "יחידה $unit" else "Unit $unit",
-                        subtitle = if (isHebrew) "לחץ להתחיל" else "Tap to start",
-                        color = colors[(unit - 1) % colors.size],
-                        onClick = { onGoToQuizShortcut(unit) }
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // ─── Quick actions ────────────────────────────────────────────────
-        SectionTitle(if (isHebrew) "פעולות מהירות" else "Quick Actions")
+        // ─── "מסלולי למידה" / Learning paths ────────────────────────────────
+        // 2 unit cards per row, ALL units; "כל המילים" is a bigger full-width card placed
+        // after the first row, with the remaining units in rows of two below it — matches the
+        // mockup's layout (not its colors: yellow/white only, no salmon or purple).
+        SectionTitle(if (isHebrew) "מסלולי למידה" else "Learning paths")
         Column(
             modifier = Modifier.padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            ActionCard(
-                icon = Icons.Filled.SwipeLeft,
-                title = if (isHebrew) "כרטיסיות לימוד" else "Flashcards",
-                subtitle = if (isHebrew) "למד עם החלקה" else "Learn with swipe",
-                color = Yellow,
+            val unitRows = state.units.chunked(2)
+            unitRows.firstOrNull()?.let { firstRow ->
+                UnitRow(
+                    units = firstRow,
+                    unitStats = state.unitStats,
+                    isHebrew = isHebrew,
+                    onClick = onGoToQuizShortcut
+                )
+            }
+            AllWordsCard(
+                total = state.totalWords,
                 isHebrew = isHebrew,
-                onClick = { onGoToFlashcard(null) }
+                onClick = { onGoToQuizShortcut(null) }
             )
-            ActionCard(
-                icon = Icons.Filled.Quiz,
-                title = if (isHebrew) "חידון מילים" else "Multiple Choice Quiz",
-                subtitle = if (isHebrew) "בחן את עצמך" else "Test your knowledge",
-                color = Color(0xFF6C63FF),
-                isHebrew = isHebrew,
-                onClick = onGoToQuiz
-            )
-            ActionCard(
-                icon = Icons.Filled.BarChart,
-                title = if (isHebrew) "התקדמות שלי" else "My Progress",
-                subtitle = if (isHebrew) "ראה כמה למדת" else "See how far you've come",
-                color = CorrectGreen,
-                isHebrew = isHebrew,
-                onClick = { onGoToProgress(null) }
-            )
+            unitRows.drop(1).forEach { row ->
+                UnitRow(
+                    units = row,
+                    unitStats = state.unitStats,
+                    isHebrew = isHebrew,
+                    onClick = onGoToQuizShortcut
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun UnitRow(
+    units: List<Int>,
+    unitStats: Map<Int, Pair<Int, Int>>,
+    isHebrew: Boolean,
+    onClick: (Int) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        units.forEach { unit ->
+            val (known, total) = unitStats[unit] ?: (0 to 0)
+            UnitPathCard(
+                unit = unit,
+                known = known,
+                total = total,
+                isHebrew = isHebrew,
+                onClick = { onClick(unit) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+        // Odd unit out in this row: keep the other card at half width instead of full width.
+        if (units.size == 1) {
+            Spacer(modifier = Modifier.weight(1f))
+        }
     }
 }
 
@@ -214,7 +216,7 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun StatCard(
+private fun StatColumn(
     icon: ImageVector,
     value: String,
     label: String,
@@ -222,94 +224,117 @@ private fun StatCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null
 ) {
-    val cardModifier = if (onClick != null) {
-        modifier.shadow(2.dp, RoundedCornerShape(16.dp)).clickable(onClick = onClick)
-    } else {
-        modifier.shadow(2.dp, RoundedCornerShape(16.dp))
-    }
-    Card(
-        modifier = cardModifier.aspectRatio(1f),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = White)
+    val colModifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
+    Column(
+        modifier = colModifier,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(28.dp))
-            Spacer(Modifier.height(8.dp))
-            Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, color = TextPrimary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            Spacer(Modifier.height(4.dp))
-            Text(label, style = MaterialTheme.typography.labelMedium, color = TextSecondary, textAlign = TextAlign.Center, maxLines = 2, minLines = 1, lineHeight = 14.sp)
-        }
+        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(26.dp))
+        Spacer(Modifier.height(8.dp))
+        Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = TextPrimary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Spacer(Modifier.height(4.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = TextSecondary, textAlign = TextAlign.Center, maxLines = 2, minLines = 1, lineHeight = 14.sp)
     }
 }
 
 @Composable
-private fun UnitCard(title: String, subtitle: String, color: Color, onClick: () -> Unit) {
+private fun UnitPathCard(
+    unit: Int,
+    known: Int,
+    total: Int,
+    isHebrew: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val pct = if (total > 0) known.toFloat() / total else 0f
     Card(
-        modifier = Modifier
-            .width(140.dp)
-            .height(100.dp)
-            .shadow(4.dp, RoundedCornerShape(18.dp))
+        modifier = modifier
+            .shadow(3.dp, RoundedCornerShape(18.dp))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = color)
+        colors = CardDefaults.cardColors(containerColor = White)
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(title, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = TextPrimary)
-            Spacer(Modifier.height(4.dp))
-            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = TextPrimary.copy(alpha = 0.7f))
+        Column(modifier = Modifier.padding(16.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Yellow.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = YellowDark, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = if (isHebrew) "יחידה $unit" else "Unit $unit",
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 16.sp,
+                color = TextPrimary,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(10.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(SurfaceGray)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(pct.coerceIn(0f, 1f))
+                        .fillMaxHeight()
+                        .background(Yellow)
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = if (isHebrew) "התחל" else "Start",
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                color = YellowDark
+            )
         }
     }
 }
 
 @Composable
-private fun ActionCard(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    color: Color,
-    isHebrew: Boolean,
-    onClick: () -> Unit
-) {
+private fun AllWordsCard(total: Int, isHebrew: Boolean, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(3.dp, RoundedCornerShape(16.dp))
+            .shadow(4.dp, RoundedCornerShape(18.dp))
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = White)
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Yellow)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(color.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(26.dp))
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary)
-                Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+            Column {
+                Text(
+                    text = if (isHebrew) "כל המילים" else "All Words",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 18.sp,
+                    color = TextPrimary
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "$total ${if (isHebrew) "מילים" else "words"}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextPrimary.copy(alpha = 0.75f)
+                )
             }
             Icon(
-                imageVector = Icons.Filled.ChevronRight,
+                Icons.AutoMirrored.Filled.MenuBook,
                 contentDescription = null,
-                tint = TextHint,
-                modifier = Modifier.graphicsLayer {
-                    rotationZ = if (isHebrew) 180f else 0f
-                }
+                tint = TextPrimary,
+                modifier = Modifier.size(32.dp)
             )
         }
     }

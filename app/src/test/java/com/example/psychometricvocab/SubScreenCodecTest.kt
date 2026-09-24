@@ -12,7 +12,6 @@ class SubScreenCodecTest {
             null,
             QuizSettingsKey,
             AccountKey,
-            SettingsKey,
             FlashcardKey(unit = null),
             FlashcardKey(unit = 7, mode = "memorize"),
             QuizKey(unit = null, unknownOnly = false),
@@ -31,5 +30,12 @@ class SubScreenCodecTest {
     @Test
     fun unknownValueRestoresToHome() {
         assertEquals(null, SubScreenCodec.decode("something-else"))
+    }
+
+    @Test
+    fun settingsKeySavedBeforeItBecameTheProfileTabRestoresToHome() {
+        // "settings" was SettingsKey's encoding before Settings became the Profile tab's own
+        // root content; a process-death restore of that old value must not crash.
+        assertEquals(null, SubScreenCodec.decode("settings"))
     }
 }

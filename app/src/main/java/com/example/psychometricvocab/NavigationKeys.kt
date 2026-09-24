@@ -13,8 +13,9 @@ import kotlinx.serialization.Serializable
     // preference (falling back to "all words") instead of trusting `unknownOnly` above.
     val useSavedPreference: Boolean = false
 )
+// Settings is now the Profile tab's own root content (see Navigation.kt), not a pushed
+// sub-screen, so there is no SettingsKey any more — only Account is still pushed from within it.
 @Serializable data object AccountKey
-@Serializable data object SettingsKey
 
 /**
  * Encodes the current sub-screen as a plain String so it can be stored in the
@@ -30,7 +31,6 @@ object SubScreenCodec {
         is QuizKey -> "quiz|${screen.unit ?: ""}|${screen.unknownOnly}|${screen.isReviewMode}|${screen.useSavedPreference}"
         QuizSettingsKey -> "quizSettings"
         AccountKey -> "account"
-        SettingsKey -> "settings"
         else -> NONE
     }
 
@@ -49,7 +49,6 @@ object SubScreenCodec {
             )
             "quizSettings" -> QuizSettingsKey
             "account" -> AccountKey
-            "settings" -> SettingsKey
             else -> null
         }
     }

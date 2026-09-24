@@ -22,13 +22,15 @@ import com.example.psychometricvocab.theme.*
 import com.example.psychometricvocab.ui.components.VocabTopBar
 
 /**
- * The avatar circle on Home and Progress opens here instead of jumping straight to Account.
- * Account is one entry inside it; Preferences (currently just "Auto pass") is meant to grow.
+ * The Profile tab's content (bottom nav index 0) — not a pushed sub-screen, so `onBack` is only
+ * non-null on the rare other path here (there isn't one right now, but VocabTopBar supports it).
+ * Account is one entry inside it, reached as a real sub-screen; back from Account clears that
+ * sub-screen and lands back on this tab. Preferences (currently just "Auto pass") is meant to grow.
  */
 @Composable
 fun SettingsScreen(
     onGoToAccount: () -> Unit,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val appState = LocalAppState.current

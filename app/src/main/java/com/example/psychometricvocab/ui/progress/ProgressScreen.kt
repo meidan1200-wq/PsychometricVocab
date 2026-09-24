@@ -35,7 +35,6 @@ import com.example.psychometricvocab.ui.components.VocabTopBar
 fun ProgressScreen(
     autoExpandUnit: Int? = null,
     onBack: (() -> Unit)? = null,
-    onAvatarClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     vm: ProgressViewModel = viewModel()
 ) {
@@ -55,8 +54,7 @@ fun ProgressScreen(
         topBar = {
             VocabTopBar(
                 title = if (isHebrew) "התקדמות שלי" else "My Progress",
-                onBack = onBack,
-                onAvatarClick = onAvatarClick
+                onBack = onBack
             )
         },
         containerColor = OffWhite
