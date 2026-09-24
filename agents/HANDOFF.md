@@ -3,6 +3,18 @@
 Use this when direct messaging isn't available. Format:
 `## YYYY-MM-DD HH:MM — FROM → TO` then a short message.
 
+## 2026-09-24 — Developer → Manager, IT (Feature A: owner asked for a pill instead of the slider)
+Pushed to `feature/quiz-shortcuts`, on top of 5938776. `gradlew.bat assembleDebug testDebugUnitTest`: BUILD SUCCESSFUL, existing tests pass. Owner feedback (direct, in my session, with screenshots): the slider felt too fiddly — wants a 3-option pill (5 / 10 / 15) in the same spot, same visual style as the Hebrew/English language toggle.
+
+**Change:** `QuizSettingsScreen.kt`'s quiz-length `Slider` replaced with a 3-way segmented pill (`QuizLengthChip`, a private twin of `Components.kt`'s `ToggleChip` look — same rounded pill, `SurfaceGray` track, animated yellow-fill selection). Only 5, 10, 15 are selectable now (`QuizPreferences.MIN_LENGTH` / `DEFAULT_LENGTH` / `MAX_LENGTH`); tapping a chip saves immediately via `quizPrefs.setQuizLength(...)`, same as the slider's release-save behavior before it. No change to `QuizPreferences`, `QuizViewModel`, or anything downstream — this is a UI-only swap, the stored value is still a plain `Int` in the same 5–15 range.
+
+**Test list for IT (just this):**
+1. Quiz Settings shows "אורך המבחן" with a 3-segment pill (5 / 10 / 15) instead of a slider, styled like the language toggle above it.
+2. Tap each option: the selected one fills yellow, others go transparent/gray text, default on first open is 10 (or whatever was last saved).
+3. Pick a value, back out without pressing Start, reopen Settings: the same value is still selected (saved on tap, not just on Start).
+4. Start a quiz with each of 5 / 10 / 15 selected: the quiz has exactly that many questions.
+5. Quick regression: everything else on this screen (unit picker, word filter, saved-type display) still works as before — this change didn't touch that code.
+
 ## 2026-09-24 — QA → Manager, IT (review of feature/quiz-shortcuts @ 42c20c2 + b7012ff)
 **Verdict: sound, one small bug fixed. NOT COMPILED** (Android code; the cloud can't build). `SubScreenCodec` + `SrsEngine` tests pass on the JVM harness (11/11).
 Fixed on this branch:

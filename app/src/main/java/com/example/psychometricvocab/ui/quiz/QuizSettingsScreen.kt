@@ -1,5 +1,7 @@
 package com.example.psychometricvocab.ui.quiz
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,7 +27,6 @@ import com.example.psychometricvocab.ui.components.VocabTopBar
 import com.example.psychometricvocab.ui.components.YellowButton
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 
@@ -193,36 +194,39 @@ fun QuizSettingsScreen(
                 colors = CardDefaults.cardColors(containerColor = White)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (isHebrew) "אורך המבחן" else "Quiz length",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (isHebrew) "$quizLength מילים" else "$quizLength words",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Yellow
-                        )
-                    }
-                    Slider(
-                        value = quizLength.toFloat(),
-                        // roundToInt: stepped slider values are floats like 8.9999994, and toInt() truncated them to the step below
-                        onValueChange = { quizLength = it.roundToInt() },
-                        onValueChangeFinished = {
-                            // Save as soon as the owner lets go of the thumb, not only on Start:
-                            // otherwise leaving the screen without starting a quiz lost the change.
-                            quizPrefs.setQuizLength(quizLength)
-                        },
-                        valueRange = QuizPreferences.MIN_LENGTH.toFloat()..QuizPreferences.MAX_LENGTH.toFloat(),
-                        steps = QuizPreferences.MAX_LENGTH - QuizPreferences.MIN_LENGTH - 1,
-                        colors = SliderDefaults.colors(thumbColor = Yellow, activeTrackColor = Yellow)
+                    Text(
+                        text = if (isHebrew) "אורך המבחן" else "Quiz length",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
                     )
+                    Spacer(Modifier.height(12.dp))
+                    // A 3-way pill, same style as the language toggle above, instead of a
+                    // slider: the owner only ever wants 5, 10 or 15 words, never in between.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(50))
+                            .background(SurfaceGray)
+                            .padding(4.dp)
+                    ) {
+                        listOf(
+                            QuizPreferences.MIN_LENGTH,
+                            QuizPreferences.DEFAULT_LENGTH,
+                            QuizPreferences.MAX_LENGTH
+                        ).forEach { length ->
+                            QuizLengthChip(
+                                label = if (isHebrew) "$length מילים" else "$length",
+                                selected = quizLength == length,
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    quizLength = length
+                                    // Save immediately, same as before: leaving the screen
+                                    // without pressing Start still keeps the new length.
+                                    quizPrefs.setQuizLength(length)
+                                }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -283,6 +287,35 @@ private fun FilterOptionRow(label: String, subtitle: String, selected: Boolean, 
             onClick = if (enabled) onClick else null,
             enabled = enabled,
             colors = RadioButtonDefaults.colors(selectedColor = Yellow, unselectedColor = DividerGray)
+        )
+    }
+}
+
+// Same pill-chip look as the Hebrew/English language toggle (Components.kt's ToggleChip is
+// private to that file, so this is a small twin rather than a shared export).
+@Composable
+private fun QuizLengthChip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val bgColor by animateColorAsState(
+        targetValue = if (selected) Yellow else Color.Transparent,
+        animationSpec = tween(200), label = "quizLengthChipBg"
+    )
+    val textColor by animateColorAsState(
+        targetValue = if (selected) TextPrimary else TextSecondary,
+        animationSpec = tween(200), label = "quizLengthChipText"
+    )
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(bgColor)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = textColor,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            textAlign = TextAlign.Center
         )
     }
 }
