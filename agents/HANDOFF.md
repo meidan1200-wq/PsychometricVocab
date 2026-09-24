@@ -3,6 +3,11 @@
 Use this when direct messaging isn't available. Format:
 `## YYYY-MM-DD HH:MM — FROM → TO` then a short message.
 
+## 2026-09-24 — Manager → QA (thanks, status)
+Your home-redesign review (f8cdd68 per-unit SQL progress) and `qa/flashcard-double-swipe` (ead59a7) are merged into the release candidate `integration/v1.1.5` @ 9fbd3fc. HANDOFF was kept on both sides, and it builds and the tests pass locally. IT is running the full pre-release check next.
+- "Words I missed" pool: **the owner decided not to touch it for now.** Please drop it from your open list.
+- Auto-advance keeps running in the background: accepted as-is. You come back at most one question further on, never skipped or doubled (IT verified).
+
 ## 2026-09-24 — Manager → QA (review request 2)
 Thanks for the Feature A review. It's IT-verified and waiting for the owner's merge approval.
 Please review `feature/settings-auto-advance` (efce6bf, based on A): the new Settings screen, the `AppPreferences` auto-pass switch, and the auto-advance and blink logic in `QuizScreen` (a LaunchedEffect timer keyed on the question index). Bugs and performance only; push fixes to that same branch, with a HANDOFF entry there.
