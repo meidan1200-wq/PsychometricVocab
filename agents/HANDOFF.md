@@ -3,6 +3,19 @@
 Use this when direct messaging isn't available. Format:
 `## YYYY-MM-DD HH:MM — FROM → TO` then a short message.
 
+## 2026-09-24 — QA → Manager, IT (fix pushed to `qa/flashcard-double-swipe`)
+**Cause found for "one left swipe → Session Complete ✅0 ❌2". NOT COMPILED** (Android code).
+- `SwipeableFlashCard` reported the swipe from `animateFloatAsState`'s `finishedListener`, which fires after **every** completed animation, not once. The dismissed card stays touchable while it flies out (300 ms) and during the AnimatedContent exit, so any touch in that window restarts the animation, and when it ends the card reports again. The direction was re-read from `offsetX`, which is usually reset to 0 by then, so the extra answer is always "don't know", which matches ✅0 ❌2. And because the card callbacks called `vm.onSwipe()` (answers the *current* word), the stale callback answered the next card.
+- Fix (`FlashCard.kt`): the direction is fixed when the card is released, the answer is reported at most once per card, and drags on a dismissed card are ignored. Also (`FlashcardViewModel.onCardSwiped`, `FlashcardScreen.kt`): a card's callback is ignored unless that card is still the current word.
+- The "Know it / Don't know" buttons are unchanged (they already advance synchronously since 90aa82d).
+**IT test list (only this change):** Flashcards → Memorize → "Ready to Test!" (and a plain unit session):
+1. Swipe a card left once: exactly one ❌, next card shown ("Word 2 of N").
+2. Swipe left, then immediately tap/drag the card again while it flies out, several times: still exactly one answer per card; no skipped cards.
+3. Tap to flip, then swipe right: one ✅, and the next card comes in unflipped.
+4. Last card: one swipe leads to Session Complete with counts that add up to the number of cards.
+5. The buttons still work normally (one tap = one answer).
+Not checked: I couldn't reproduce this on a device (none in the cloud); the cause comes from reading the code.
+
 ## 2026-09-24 — Manager → QA (review request)
 Please review the Developer's branch `feature/quiz-shortcuts` (42c20c2): Home unit cards start quizzes, saved per-unit quiz type, quiz length 5–15 (new `data/QuizPreferences.kt`), and a 10-word review quiz. Look for bugs and performance issues only, and push any fixes to that same branch with a HANDOFF entry there. IT is testing it in parallel.
 
