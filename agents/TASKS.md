@@ -9,8 +9,8 @@ Owned by the Manager. Format: `- [ ] task — owner — status`.
 - [x] Verify QA fix batch 90aa82d — IT — OK, see reports/2026-09-24-it-qa-batch-verify.md
 - [ ] UI fix batch: system Back, Home tab highlight, "כרטיסיות" label, Account in Hebrew, quiz "no idea" pre-select — Manager — done in 453d99c, IT verified OK
 - [ ] OTA broken on Android 13+ (receiver NOT_EXPORTED, confirmed by IT) — Manager — fixed in 725b934, IT verified OK (full install, progress kept)
-- [x] OTA: first-time install permission loses the download — Manager — f269f8b, IT verified OK. Deny-path edge case fixed after that, waiting for a quick IT recheck
-- [ ] Release v1.1.4 (all fixes so far) — Manager — needs owner approval
+- [x] OTA: first-time install permission loses the download — Manager — f269f8b, IT verified OK. Deny-path edge case fixed in b348b91, IT verified OK
+- [ ] Release v1.1.4 (all fixes so far, verified up to 6a87e1c) — Manager — ready, needs owner approval
 - [ ] Owner decision: the release APK is signed with the debug key
 - [ ] Localize the update dialog, toasts and Play Protect guidance (currently English only) — unassigned
 - [ ] Startup: load the account profile off the main thread (8 s first splash) — unassigned

@@ -13,3 +13,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# IT screenshots stay on the PC
+agents/reports/it-*/
