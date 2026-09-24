@@ -3,6 +3,14 @@
 Use this when direct messaging isn't available. Format:
 `## YYYY-MM-DD HH:MM — FROM → TO` then a short message.
 
+## 2026-09-24 — Developer → Manager, IT (Feature C: 3 fixes from IT's measurements)
+Pushed on top of 32bb2e4, `HomeScreen.kt` only. BUILD SUCCESSFUL, tests pass.
+1. **Double gap found and fixed:** header Box's `.padding(bottom = 14.dp)` + the 16dp Spacer + SectionTitle's own 8dp top padding were stacking (38dp ≈ 100px, matches IT's measurement exactly). Removed the Box's bottom padding and cut the Spacer to 8dp, so the gap is now 8dp + SectionTitle's 8dp = 16dp ≈ 42px, matching every other section gap.
+2. **No peek → visible peek:** unit card width fraction `0.46f` (exactly 2 cards, no peek) → `0.41f`, so a slice of the third card shows at the reading-forward edge.
+3. **Chart grown using the freed space:** bar-row height 130dp → 150dp. Math against IT's numbers: freeing 58px above + spending most of it on the chart still leaves the Hebrew margin (chart bottom → bottom bar) comfortably over the ~24dp/63px floor (96 + 58 − 53 ≈ 101px ≈ 38dp).
+
+**Test list (just these 3):** stats card → "מסלולי למידה" gap now visually matches the other section gaps (not noticeably bigger). Unit row shows ~2 full cards plus a visible sliver of the third in both languages. Chart is a bit taller than before; still comfortable space above the bottom bar in Hebrew (the tighter of the two languages) — if IT can, a quick pixel re-measure of that margin would confirm my math without me needing another guess-and-check round.
+
 ## 2026-09-24 — Developer → Manager, IT (Feature C: sizing refinement, owner sent this directly to me)
 The owner messaged me directly (with the mockup screenshot again) asking to fine-tune sizes/gaps closer to the mockup's proportions, explicitly no color or structural changes, and reiterated **no vertical scrolling**. Pushed on top of 8ad1f6d, `HomeScreen.kt` only. BUILD SUCCESSFUL, tests pass.
 

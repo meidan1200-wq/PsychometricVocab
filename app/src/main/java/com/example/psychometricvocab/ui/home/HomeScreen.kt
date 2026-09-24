@@ -49,9 +49,11 @@ fun HomeScreen(
     val isHebrew = appState.isHebrew
 
     // A fraction of the actual screen width instead of a guessed fixed dp: ~2 cards fill the
-    // row with a small peek of the third, matching the mockup's proportion on whatever device
-    // this actually renders on, rather than a number picked by eye on one assumed screen size.
-    val unitCardWidth = (LocalConfiguration.current.screenWidthDp * 0.46f).dp
+    // row with a peek of the third, matching the mockup's proportion on whatever device this
+    // actually renders on, rather than a number picked by eye on one assumed screen size.
+    // 0.46 measured as exactly 2 cards with no peek at all (the row didn't read as scrollable);
+    // 0.41 leaves a visible slice of the third.
+    val unitCardWidth = (LocalConfiguration.current.screenWidthDp * 0.41f).dp
 
     LaunchedEffect(appState.track) {
         vm.loadData(appState.track)
@@ -64,13 +66,15 @@ fun HomeScreen(
             .verticalScroll(rememberScrollState())
     ) {
         // ─── Header gradient section ───────────────────────────────────────
+        // No bottom padding here: SectionTitle below already has its own top padding, and the
+        // Spacer after this Box adds the rest — padding here on top of both was a double gap
+        // (measured ~100px/38dp vs. ~42px/16dp for every other section gap).
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
                     Brush.verticalGradient(listOf(Yellow.copy(alpha = 0.15f), OffWhite))
                 )
-                .padding(bottom = 14.dp)
         ) {
             Column(modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 56.dp)) {
                 // Greeting, subtitle and the Hebrew/English pill — unchanged from before the
@@ -150,7 +154,7 @@ fun HomeScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         // ─── "מסלולי למידה" / Learning paths ────────────────────────────────
         // One horizontal scrolling row, ALL units — back from the vertical grid: the owner
@@ -377,8 +381,11 @@ private fun ActivityChartCard(days: List<Pair<LocalDate, Int>>, isHebrew: Boolea
                 )
             }
             Spacer(Modifier.height(14.dp))
+            // 150dp (up from 130): spends most of the ~58px the header-gap fix freed, while
+            // IT's measured margin (chart bottom -> bottom bar) leaves plenty of room above the
+            // required ~24dp floor even in Hebrew, the taller of the two layouts.
             Row(
-                modifier = Modifier.fillMaxWidth().height(130.dp),
+                modifier = Modifier.fillMaxWidth().height(150.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 days.forEach { (date, count) ->
