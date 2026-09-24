@@ -1,5 +1,6 @@
 package com.example.psychometricvocab
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -38,6 +39,8 @@ private val SubScreenSaver = Saver<Any?, String>(
     restore = { SubScreenCodec.decode(it) }
 )
 
+private const val HOME_TAB = 2
+
 @Composable
 fun MainNavigation() {
     val appState = rememberSaveable(saver = AppState.StateSaver) { AppState() }
@@ -53,7 +56,9 @@ fun MainNavigation() {
 
 @Composable
 fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui.account.AccountViewModel = viewModel()) {
-    var currentTab by rememberSaveable { mutableIntStateOf(0) }
+    // Tab indices match VocabBottomNav: 2 is the centre Home button. Starting on 0 highlighted
+    // the "Learn" tab while Home was showing.
+    var currentTab by rememberSaveable { mutableIntStateOf(HOME_TAB) }
     var subScreen by rememberSaveable(stateSaver = SubScreenSaver) { mutableStateOf<Any?>(null) }
     var progressExpandUnit by rememberSaveable { mutableStateOf<Int?>(null) }
 
@@ -81,16 +86,17 @@ fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui
             }
         )
     } else {
+        // System Back mirrors the in-app ← arrow: close the sub-screen, else return to Home.
+        // Without this, Back on any sub-screen finished the Activity and lost the session.
+        BackHandler(enabled = subScreen != null || currentTab != HOME_TAB) {
+            if (subScreen != null) subScreen = null else currentTab = HOME_TAB
+        }
         Scaffold(
             bottomBar = {
             VocabBottomNav(
                 currentTab = currentTab,
                 onTabSelected = { tab ->
-                    if (tab == 2) {
-                        currentTab = 0
-                    } else {
-                        currentTab = tab
-                    }
+                    currentTab = tab
                     subScreen = null
                 }
             )
@@ -150,7 +156,7 @@ fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui
                             onStartFlashcards = { unit, mode ->
                                 subScreen = FlashcardKey(unit, mode)
                             },
-                            onBack = { currentTab = 0 }
+                            onBack = { currentTab = HOME_TAB }
                         )
                     }
                     2 -> {
@@ -170,7 +176,7 @@ fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui
                             onStartQuiz = { unit, unknownOnly ->
                                 subScreen = QuizKey(unit, unknownOnly)
                             },
-                            onBack = { currentTab = 2 }
+                            onBack = { currentTab = HOME_TAB }
                         )
                     }
                     4 -> {

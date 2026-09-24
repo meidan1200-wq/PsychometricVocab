@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.example.psychometricvocab.LocalAppState
 import com.example.psychometricvocab.theme.*
 import com.example.psychometricvocab.ui.components.VocabTopBar
 import com.example.psychometricvocab.ui.components.YellowButton
@@ -39,6 +40,7 @@ fun AccountScreen(
 ) {
     val profile by vm.profile.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val isHebrew = LocalAppState.current.isHebrew
 
     var fullName by remember { mutableStateOf(profile.fullName) }
     var email by remember { mutableStateOf(profile.email) }
@@ -60,7 +62,7 @@ fun AccountScreen(
     }
 
     Scaffold(
-        topBar = { VocabTopBar(title = "Account", onBack = onBack) },
+        topBar = { VocabTopBar(title = if (isHebrew) "חשבון" else "Account", onBack = onBack) },
         containerColor = OffWhite
     ) { padding ->
         Column(
@@ -118,7 +120,7 @@ fun AccountScreen(
             OutlinedTextField(
                 value = fullName,
                 onValueChange = { fullName = it },
-                label = { Text("Full Name") },
+                label = { Text(if (isHebrew) "שם מלא" else "Full Name") },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -132,7 +134,7 @@ fun AccountScreen(
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
-                label = { Text("Email") },
+                label = { Text(if (isHebrew) "אימייל" else "Email") },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -143,7 +145,7 @@ fun AccountScreen(
 
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "End-to-End Encrypted Secure Storage",
+                text = if (isHebrew) "אחסון מאובטח ומוצפן" else "End-to-End Encrypted Secure Storage",
                 color = CorrectGreen,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
@@ -153,17 +155,17 @@ fun AccountScreen(
             Spacer(Modifier.height(32.dp))
 
             YellowButton(
-                text = "Save Account",
+                text = if (isHebrew) "שמירת חשבון" else "Save Account",
                 onClick = {
                     vm.saveProfile(fullName, email, imageUri?.toString() ?: "")
-                    Toast.makeText(context, "Local data securely linked to account!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, if (isHebrew) "החשבון נשמר!" else "Local data securely linked to account!", Toast.LENGTH_SHORT).show()
                 }
             )
 
             Spacer(Modifier.weight(1f))
 
             TextButton(onClick = { showDeleteConfirm = true }) {
-                Text("Remove Account & Data", color = WrongRed, fontWeight = FontWeight.Bold)
+                Text(if (isHebrew) "מחיקת חשבון ונתונים" else "Remove Account & Data", color = WrongRed, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -171,8 +173,8 @@ fun AccountScreen(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Remove Account") },
-            text = { Text("Are you sure you want to remove your account? This will permanently delete your profile and clear all local database progress.") },
+            title = { Text(if (isHebrew) "מחיקת חשבון" else "Remove Account") },
+            text = { Text(if (isHebrew) "למחוק את החשבון? הפרופיל יימחק וכל התקדמות הלמידה תאופס. המילים עצמן יישארו." else "Are you sure you want to remove your account? This will permanently delete your profile and reset all learning progress. The word lists stay.") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -182,11 +184,11 @@ fun AccountScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = WrongRed)
                 ) {
-                    Text("Delete")
+                    Text(if (isHebrew) "מחיקה" else "Delete")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
+                TextButton(onClick = { showDeleteConfirm = false }) { Text(if (isHebrew) "ביטול" else "Cancel") }
             }
         )
     }

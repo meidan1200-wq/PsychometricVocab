@@ -182,8 +182,10 @@ fun QuizScreen(
 
                                 // Answer options — use quizOpt to avoid shadowing issues
                                 currentQuestion.options.forEach { quizOpt ->
-                                    val optIsSelected = currentQuestion.selectedOptionId == quizOpt.wordId
                                     val isAnswered = currentQuestion.answered
+                                    // selectedOptionId defaults to -1, which is also the "no idea" option's id,
+                                    // so only trust it once the question is answered.
+                                    val optIsSelected = isAnswered && currentQuestion.selectedOptionId == quizOpt.wordId
                                     val optIsCorrect = quizOpt.isCorrect
 
                                     val bgColor = when {

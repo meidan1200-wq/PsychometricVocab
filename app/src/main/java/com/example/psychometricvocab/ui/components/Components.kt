@@ -217,7 +217,7 @@ fun VocabBottomNav(
     val appState = LocalAppState.current
     val items = if (appState.isHebrew) listOf(
         NavItem("לומדות", Icons.AutoMirrored.Filled.MenuBook, Icons.AutoMirrored.Outlined.MenuBook),
-        NavItem("שב", Icons.Filled.SwipeLeft, Icons.Outlined.SwipeLeft),
+        NavItem("כרטיסיות", Icons.Filled.SwipeLeft, Icons.Outlined.SwipeLeft),
         NavItem("הבית", Icons.Filled.Home, Icons.Outlined.Home),
         NavItem("מבחן", Icons.Filled.Quiz, Icons.Outlined.Quiz),
         NavItem("התקדמות", Icons.Filled.BarChart, Icons.Outlined.BarChart)
