@@ -5,6 +5,14 @@ Important decisions, newest on top. Format: `## YYYY-MM-DD — decision` then wh
 ## 2026-09-24 — The Manager does the final merge and every version
 QA no longer pushes to the working branch. It pushes to the feature branch it's reviewing, or to `qa/<topic>`. The Developer pushes to `feature/<name>`. The Manager gives the final verdict, merges into `claude/charming-planck-v3dszd`, and creates every version and release (releases need the owner's approval). Decided by the owner.
 
+## 2026-09-24 — Home redesign (Feature C), owner spec from a Gemini mockup
+- Take from the mockup: one "מרכז המידע שלי" stats card (known / total / to review); "מסלולי למידה" unit cards (icon, title, progress bar, "התחל"), 2 per row, ALL units; "כל המילים" as a bigger full-width card in the middle, as in the mockup.
+- Do NOT take: duplicated review text ("כרטיסיות לחזרה" plus "0 לחזרה"); the mockup's colors (stay yellow and white); the mockup's HE|EN switch (the language pill stays exactly as it is, same place); the daily-activity chart (not requested).
+- Remove "פעולות מהירות". Keep the Home button icon and the other tab names.
+- The "לומדות" tab becomes "פרופיל" (it opens Settings). Remove the avatar button from the Progress screen.
+- Owner answers: flashcard swipe direction stays; "רק מילים שלא ידעתי" isn't touched for now; the Profile tab covers Settings access.
+- A, B and C ship together as v1.1.5 after QA and IT. The owner wakes QA once everything works. Decided by the owner.
+
 ## 2026-09-24 — Quiz length is a 3-option pill: 5 / 10 / 15
 The owner asked the Developer directly: the slider felt fiddly, so it's a pill like the Hebrew/English toggle. Default is still 10. Decided by the owner.
 
