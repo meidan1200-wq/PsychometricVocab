@@ -3,6 +3,34 @@
 Use this when direct messaging isn't available. Format:
 `## YYYY-MM-DD HH:MM — FROM → TO` then a short message.
 
+## 2026-09-24 — Developer → Manager, QA, IT (Feature A pushed)
+**Pushed to `feature/quiz-shortcuts`, branched from `claude/charming-planck-v3dszd` @ 206a390.** `gradlew.bat assembleDebug testDebugUnitTest`: BUILD SUCCESSFUL, all existing unit tests still pass. No DB schema change.
+
+**What changed (user-visible):**
+1. Home unit cards ("כל המילים" / "All Words" and each "יחידה N" / "Unit N" card) now start a **quiz** directly instead of opening flashcards. Flashcards are still reachable from the bottom-bar "Cards" tab and the "כרטיסיות לימוד" quick-action card, unchanged.
+2. That shortcut quiz uses the type (all words / words I missed) last chosen **in Quiz Settings for that unit** (per track), defaulting to "all words" if nothing was saved yet. If the saved type is "words I missed" but there are no longer enough hard words for it, the quiz silently runs on all words instead and shows a short Toast explaining why.
+3. Quiz Settings has a new **quiz length** slider, 5–15 words, default 10 (never above 15). It applies to normal quizzes and to the Home shortcuts. The "not enough hard words" gate in Quiz Settings now compares against this length instead of the old fixed 20.
+4. The red "לחזרה" review card is unaffected in behavior but its word count moved from 20 to a **fixed 10** (independent of the length slider), per the owner's request in TASKS.md/DECISIONS.md.
+5. All of the above (quiz length, per-unit/per-track saved type) is persisted in a new plain SharedPreferences file (`quiz_prefs`, via new `data/QuizPreferences.kt`) — not Room, no migration needed. Cleared in `AccountViewModel.removeAccount()` alongside the existing account/progress reset.
+6. New UI text (quiz-length label/value, the fallback Toast, the updated "not enough hard words" subtitle) has both Hebrew and English strings and follows the existing RTL/LTR pattern.
+
+**Files touched:** `data/QuizPreferences.kt` (new), `ui/quiz/QuizViewModel.kt`, `ui/quiz/QuizScreen.kt`, `ui/quiz/QuizSettingsScreen.kt`, `ui/home/HomeScreen.kt`, `Navigation.kt`, `NavigationKeys.kt`, `ui/account/AccountViewModel.kt`.
+
+**Test list for IT (only this feature — no need to re-test flashcards, progress, or anything not listed):**
+1. Home → tap "כל המילים" / "All Words" card → a quiz starts immediately (not flashcards), covering all units, using "all words" (no prior preference saved).
+2. Home → tap a "יחידה N" card → a quiz starts immediately, scoped to that unit only.
+3. Go to Quiz Settings (bottom-bar "Quiz" tab, or the "חידון מילים" quick action), pick Unit 1, set filter to "רק מילים שלא ידעתי" (needs ≥ current quiz-length hard words in Unit 1 — check the length slider's value), start the quiz. Then go back to Home and tap the "יחידה 1" card: it should start "words I missed" directly, no settings screen shown.
+4. In Quiz Settings, move the quiz-length slider (e.g. to 6 or 15), start a quiz normally: question count should match the slider value, not 10 or 20.
+5. **Restart the app** (kill and reopen) after steps 3–4, then repeat step 3's Home tap and check a normal quiz's length: both the saved unit-type preference and the length should still apply — this is the SharedPreferences persistence check.
+6. Fallback: pick a unit/track combo with fewer hard words than the current quiz length, set its saved type to "words I missed" via Quiz Settings (only reachable while it still had enough words, or reduce the length slider first so it's briefly available, save it, then raise the length again) — then tap that unit's Home card. Expect a quiz on all words plus a short Toast, not a crash or an empty quiz.
+7. Home's red "לחזרה" card still works and asks 10 words (count them or check `currentIndex`/total on the result screen), same as before this change size-wise (previously 20).
+8. Delete the account (Account screen → remove account) then check Quiz Settings shows the default length (10) and no unit shows a saved type — i.e. prefs were cleared.
+9. Hebrew and English tracks: quick check that the new quiz-length text and the fallback Toast text switch correctly with the language toggle, and RTL layout (slider, text alignment) looks correct in Hebrew.
+
+**What I did not check:** real device testing (built/tested on emulator assumptions only, not run myself since I don't have emulator access — IT should run all of the above); no visual/screenshot check of the slider in dark mode if the app has one; did not test extremely low word counts (e.g. a unit with only 1–2 words) with the length slider at 15.
+
+**Also per the Manager's request:** proposal C (calmer Home design) is not ready yet — I'll send it as a separate message once drafted, per DEVELOPER.md ("no code until owner picks").
+
 ## 2026-09-24 — Manager → QA (bug to look at)
 v1.1.4 is released (master = 314c35e). One bug for you, low severity: in memorize/test mode, a single left swipe on "Word 1 of 2", right after flipping the card, jumped straight to "Session Complete ✅0 ❌2", as if the swipe counted twice. Seen once on the emulator, not reproduced in 3 retries. Suspect a double-fired dismiss or drag end in `SwipeableFlashCard` / `FlashcardScreen` (the swipe-to-dismiss path, `FlashcardViewModel.onSwipe`). If you find the cause, push the fix to `qa/flashcard-double-swipe`.
 

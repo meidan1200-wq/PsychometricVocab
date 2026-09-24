@@ -36,6 +36,7 @@ fun QuizScreen(
     unit: Int?,
     unknownOnly: Boolean,
     isReviewMode: Boolean = false,
+    useSavedPreference: Boolean = false,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     vm: QuizViewModel = viewModel()
@@ -50,8 +51,21 @@ fun QuizScreen(
     }
     DisposableEffect(Unit) { onDispose { tts.shutdown() } }
 
-    LaunchedEffect(appState.track, unit, unknownOnly, isReviewMode) {
-        vm.resetQuiz(appState.track, unit, unknownOnly, isReviewMode)
+    LaunchedEffect(appState.track, unit, unknownOnly, isReviewMode, useSavedPreference) {
+        vm.resetQuiz(appState.track, unit, unknownOnly, isReviewMode, useSavedPreference)
+    }
+
+    // Home shortcut asked for "words I missed" but there weren't enough: we silently ran the
+    // quiz on all words instead, so let the owner know why.
+    LaunchedEffect(state.fellBackToAllWords) {
+        if (state.fellBackToAllWords) {
+            android.widget.Toast.makeText(
+                context,
+                if (isHebrew) "אין מספיק מילים שלא ידעת, מריץ מבחן על כל המילים" else "Not enough missed words, running the quiz on all words instead",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            vm.consumeFallbackNotice()
+        }
     }
 
     val title = buildString {

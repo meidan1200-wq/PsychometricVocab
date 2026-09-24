@@ -3,6 +3,7 @@ package com.example.psychometricvocab.ui.quiz
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.psychometricvocab.data.QuizPreferences
 import com.example.psychometricvocab.data.SrsEngine
 import com.example.psychometricvocab.data.VocabDatabase
 import com.example.psychometricvocab.data.VocabRepository
@@ -31,7 +32,10 @@ data class QuizUiState(
     val wrongCount: Int = 0,
     val isLoading: Boolean = true,
     val currentTrack: String? = null,
-    val currentUnit: Int? = null
+    val currentUnit: Int? = null,
+    // One-shot: set when a Home shortcut asked for "words I missed" but there weren't enough,
+    // so the quiz silently fell back to all words. QuizScreen shows a Toast then consumes it.
+    val fellBackToAllWords: Boolean = false
 ) {
     val currentQuestion get() = questions.getOrNull(currentIndex)
     val total get() = questions.size
@@ -40,29 +44,63 @@ data class QuizUiState(
 
 class QuizViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = VocabRepository(VocabDatabase.getInstance(app).wordDao())
+    private val quizPrefs = QuizPreferences(app)
 
     private val _state = MutableStateFlow(QuizUiState())
     val state: StateFlow<QuizUiState> = _state.asStateFlow()
 
     private var loadJob: Job? = null
 
-    fun resetQuiz(track: String, unit: Int?, unknownOnly: Boolean, isReviewMode: Boolean = false) {
+    fun resetQuiz(
+        track: String,
+        unit: Int?,
+        unknownOnly: Boolean,
+        isReviewMode: Boolean = false,
+        useSavedPreference: Boolean = false
+    ) {
         _state.update { QuizUiState(currentTrack = track, currentUnit = unit, isLoading = true) }
-        loadQuiz(track, unit, unknownOnly, isReviewMode)
+        loadQuiz(track, unit, unknownOnly, isReviewMode, useSavedPreference)
     }
 
-    fun loadQuiz(track: String, unit: Int?, unknownOnly: Boolean, isReviewMode: Boolean = false) {
+    fun loadQuiz(
+        track: String,
+        unit: Int?,
+        unknownOnly: Boolean,
+        isReviewMode: Boolean = false,
+        // Home unit-card shortcuts don't pick a type themselves: they replay whatever the owner
+        // last chose in Quiz Settings for that unit, falling back to "all words" if unset or if
+        // "words I missed" no longer has enough words.
+        useSavedPreference: Boolean = false
+    ) {
         // Cancel any previous load: before, every quiz left a collector on the whole word
         // table running forever, re-querying thousands of rows after every answer, and an
         // old collector could fill a new quiz with questions from the previous unit.
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
+            val length = quizPrefs.getQuizLength()
+            var effectiveUnknownOnly = unknownOnly
+            var fellBack = false
+            if (useSavedPreference) {
+                val saved = quizPrefs.getUnknownOnly(track, unit) ?: false
+                effectiveUnknownOnly = if (saved) {
+                    val hardCount = if (unit == null) {
+                        repo.getHardestWordsCount(track).first()
+                    } else {
+                        repo.getHardestWordsCountByUnit(track, unit).first()
+                    }
+                    if (hardCount >= length) true else { fellBack = true; false }
+                } else {
+                    false
+                }
+            }
             val allWords = repo.getWordsForSession(track, if (isReviewMode) null else unit).first()
             val sessionWords = if (isReviewMode) {
-                repo.getHardestWordsForReview(track, 20)
+                // Fixed length regardless of the Quiz Settings length slider: the red review
+                // card always drills the same-size, hand-picked set of hardest words.
+                repo.getHardestWordsForReview(track, REVIEW_WORD_COUNT)
             } else {
-                val pool = if (unknownOnly) allWords.filter { !it.isKnown } else allWords
-                SrsEngine.selectWordsForSession(pool.ifEmpty { allWords }, 20)
+                val pool = if (effectiveUnknownOnly) allWords.filter { !it.isKnown } else allWords
+                SrsEngine.selectWordsForSession(pool.ifEmpty { allWords }, length)
             }
             val questions = withContext(Dispatchers.Default) {
                 sessionWords.map { word -> buildQuestion(word, allWords, track) }
@@ -72,10 +110,15 @@ class QuizViewModel(app: Application) : AndroidViewModel(app) {
                     questions = questions,
                     isLoading = false,
                     // Nothing to ask (e.g. no hard words yet): show the result screen, not a blank page
-                    sessionComplete = questions.isEmpty()
+                    sessionComplete = questions.isEmpty(),
+                    fellBackToAllWords = fellBack
                 )
             }
         }
+    }
+
+    fun consumeFallbackNotice() {
+        _state.update { it.copy(fellBackToAllWords = false) }
     }
 
     private fun buildQuestion(word: Word, allWords: List<Word>, track: String): QuizQuestion {
@@ -121,5 +164,9 @@ class QuizViewModel(app: Application) : AndroidViewModel(app) {
         val s = _state.value
         val nextIndex = s.currentIndex + 1
         _state.update { it.copy(currentIndex = nextIndex, sessionComplete = nextIndex >= it.questions.size) }
+    }
+
+    companion object {
+        private const val REVIEW_WORD_COUNT = 10
     }
 }

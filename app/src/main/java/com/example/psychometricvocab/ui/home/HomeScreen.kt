@@ -34,6 +34,7 @@ import com.example.psychometricvocab.ui.components.YellowButton
 fun HomeScreen(
     onGoToFlashcard: (Int?) -> Unit,
     onGoToQuiz: () -> Unit,
+    onGoToQuizShortcut: (Int?) -> Unit,
     onGoToProgress: (Int?) -> Unit,
     onGoToReview: () -> Unit,
     onAvatarClick: () -> Unit,
@@ -140,7 +141,7 @@ fun HomeScreen(
                         title = if (isHebrew) "כל המילים" else "All Words",
                         subtitle = "${state.totalWords} ${if (isHebrew) "מילים" else "words"}",
                         color = Yellow,
-                        onClick = { onGoToFlashcard(null) }
+                        onClick = { onGoToQuizShortcut(null) }
                     )
                 }
                 items(state.units) { unit ->
@@ -157,7 +158,7 @@ fun HomeScreen(
                         title = if (isHebrew) "יחידה $unit" else "Unit $unit",
                         subtitle = if (isHebrew) "לחץ להתחיל" else "Tap to start",
                         color = colors[(unit - 1) % colors.size],
-                        onClick = { onGoToFlashcard(unit) }
+                        onClick = { onGoToQuizShortcut(unit) }
                     )
                 }
             }

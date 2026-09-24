@@ -129,6 +129,7 @@ fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui
                         unit = key.unit,
                         unknownOnly = key.unknownOnly,
                         isReviewMode = key.isReviewMode,
+                        useSavedPreference = key.useSavedPreference,
                         onBack = { subScreen = null }
                     )
                 }
@@ -142,6 +143,7 @@ fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui
                         HomeScreen(
                             onGoToFlashcard = { unit -> subScreen = FlashcardKey(unit) },
                             onGoToQuiz = { subScreen = QuizSettingsKey },
+                            onGoToQuizShortcut = { unit -> subScreen = QuizKey(unit = unit, unknownOnly = false, useSavedPreference = true) },
                             onGoToProgress = { unit -> 
                                 progressExpandUnit = unit
                                 currentTab = 4 
@@ -163,6 +165,7 @@ fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui
                         HomeScreen(
                             onGoToFlashcard = { unit -> subScreen = FlashcardKey(unit) },
                             onGoToQuiz = { subScreen = QuizSettingsKey },
+                            onGoToQuizShortcut = { unit -> subScreen = QuizKey(unit = unit, unknownOnly = false, useSavedPreference = true) },
                             onGoToProgress = { unit -> 
                                 progressExpandUnit = unit
                                 currentTab = 4 
@@ -190,6 +193,7 @@ fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui
                         HomeScreen(
                             onGoToFlashcard = { unit -> subScreen = FlashcardKey(unit) },
                             onGoToQuiz = { subScreen = QuizSettingsKey },
+                            onGoToQuizShortcut = { unit -> subScreen = QuizKey(unit = unit, unknownOnly = false, useSavedPreference = true) },
                             onGoToProgress = { unit -> 
                                 progressExpandUnit = unit
                                 currentTab = 4 

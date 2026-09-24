@@ -16,6 +16,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.psychometricvocab.LocalAppState
+import com.example.psychometricvocab.data.QuizPreferences
 import com.example.psychometricvocab.data.VocabDatabase
 import com.example.psychometricvocab.data.VocabRepository
 import com.example.psychometricvocab.theme.*
@@ -37,11 +38,13 @@ fun QuizSettingsScreen(
     val isHebrew = appState.isHebrew
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val quizPrefs = remember { QuizPreferences(context) }
 
     var selectedUnit by remember { mutableStateOf<Int?>(null) }
     var unknownOnly by remember { mutableStateOf(false) }
     var units by remember { mutableStateOf(listOf<Int>()) }
     var hardestWordsCount by remember { mutableStateOf(0) }
+    var quizLength by remember { mutableStateOf(quizPrefs.getQuizLength()) }
 
     // Load units
     LaunchedEffect(appState.track) {
@@ -148,7 +151,9 @@ fun QuizSettingsScreen(
                     )
                     Spacer(Modifier.height(8.dp))
 
-                    val hasEnoughHardWords = hardestWordsCount >= 20
+                    // Gate matches the quiz length below: there's no point offering a
+                    // "words I missed" quiz shorter than a full one.
+                    val hasEnoughHardWords = hardestWordsCount >= quizLength
                     if (!hasEnoughHardWords && unknownOnly) {
                         unknownOnly = false
                     }
@@ -164,7 +169,7 @@ fun QuizSettingsScreen(
                     FilterOptionRow(
                         label = if (isHebrew) "רק מילים שלא ידעתי" else "Words I missed",
                         subtitle = if (!hasEnoughHardWords) {
-                            if (isHebrew) "אין מספיק מילים קשות (צריך לפחות 20)" else "Not enough hard words (need 20+)"
+                            if (isHebrew) "אין מספיק מילים קשות (צריך לפחות $quizLength)" else "Not enough hard words (need $quizLength+)"
                         } else {
                             if (isHebrew) "תרגול מילים קשות" else "Practice difficult words"
                         },
@@ -175,12 +180,49 @@ fun QuizSettingsScreen(
                 }
             }
 
+            // Quiz length
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = White)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (isHebrew) "אורך המבחן" else "Quiz length",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (isHebrew) "$quizLength מילים" else "$quizLength words",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Yellow
+                        )
+                    }
+                    Slider(
+                        value = quizLength.toFloat(),
+                        onValueChange = { quizLength = it.toInt() },
+                        valueRange = QuizPreferences.MIN_LENGTH.toFloat()..QuizPreferences.MAX_LENGTH.toFloat(),
+                        steps = QuizPreferences.MAX_LENGTH - QuizPreferences.MIN_LENGTH - 1,
+                        colors = SliderDefaults.colors(thumbColor = Yellow, activeTrackColor = Yellow)
+                    )
+                }
+            }
+
             Spacer(Modifier.height(8.dp))
 
             // Start button
             YellowButton(
                 text = if (isHebrew) "התחל מבחן!" else "Start Quiz!",
-                onClick = { onStartQuiz(selectedUnit, unknownOnly) },
+                onClick = {
+                    quizPrefs.setQuizLength(quizLength)
+                    quizPrefs.setUnknownOnly(appState.track, selectedUnit, unknownOnly)
+                    onStartQuiz(selectedUnit, unknownOnly)
+                },
                 modifier = Modifier.fillMaxWidth()
             )
 

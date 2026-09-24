@@ -5,7 +5,14 @@ import kotlinx.serialization.Serializable
 // Navigation keys - used as sub-screen markers in Navigation.kt
 @Serializable data object QuizSettingsKey
 @Serializable data class FlashcardKey(val unit: Int?, val mode: String = "sort")
-@Serializable data class QuizKey(val unit: Int?, val unknownOnly: Boolean, val isReviewMode: Boolean = false)
+@Serializable data class QuizKey(
+    val unit: Int?,
+    val unknownOnly: Boolean,
+    val isReviewMode: Boolean = false,
+    // Set by Home's unit-card shortcuts: resolve the type from the owner's saved per-unit
+    // preference (falling back to "all words") instead of trusting `unknownOnly` above.
+    val useSavedPreference: Boolean = false
+)
 @Serializable data object AccountKey
 
 /**
@@ -19,7 +26,7 @@ object SubScreenCodec {
 
     fun encode(screen: Any?): String = when (screen) {
         is FlashcardKey -> "flashcard|${screen.unit ?: ""}|${screen.mode}"
-        is QuizKey -> "quiz|${screen.unit ?: ""}|${screen.unknownOnly}|${screen.isReviewMode}"
+        is QuizKey -> "quiz|${screen.unit ?: ""}|${screen.unknownOnly}|${screen.isReviewMode}|${screen.useSavedPreference}"
         QuizSettingsKey -> "quizSettings"
         AccountKey -> "account"
         else -> NONE
@@ -35,7 +42,8 @@ object SubScreenCodec {
             "quiz" -> QuizKey(
                 unit = parts.getOrNull(1)?.toIntOrNull(),
                 unknownOnly = parts.getOrNull(2) == "true",
-                isReviewMode = parts.getOrNull(3) == "true"
+                isReviewMode = parts.getOrNull(3) == "true",
+                useSavedPreference = parts.getOrNull(4) == "true"
             )
             "quizSettings" -> QuizSettingsKey
             "account" -> AccountKey
