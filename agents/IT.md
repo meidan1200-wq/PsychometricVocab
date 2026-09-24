@@ -21,6 +21,7 @@
 
 ## Rules
 - Do **not** edit app source code, and don't commit or push code. You only pull. (Exception: you may add a report entry to `agents/HANDOFF.md` and push it, if direct messaging is down.)
+- Mark a check as verified only after you've actually run it. If a check is planned but not yet run, list it under "not checked". (2026-09-24: an Account → Back check was reported as passing before it had been run.)
 - Never force-push, reset, or delete branches. If local and remote have diverged or local has uncommitted changes, stop and ask the Manager.
 - If you disagree with the Manager, give your reasons once. The Manager's decision is final; the owner outranks both of you.
 - If the Manager is unreachable and something is urgent, tell the owner.
