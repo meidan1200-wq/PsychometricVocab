@@ -2,6 +2,12 @@
 
 Important decisions, newest on top. Format: `## YYYY-MM-DD — decision` then why, and who decided.
 
+## 2026-09-24 — The Manager does the final merge and every version
+QA no longer pushes to the working branch. It pushes to the feature branch it's reviewing, or to `qa/<topic>`. The Developer pushes to `feature/<name>`. The Manager gives the final verdict, merges into `claude/charming-planck-v3dszd`, and creates every version and release (releases need the owner's approval). Decided by the owner.
+
+## 2026-09-24 — Release v1.1.4 approved by the owner
+It's held until the owner decides between the debug key and a new release key, because that decides how v1.1.4 is signed.
+
 ## 2026-09-24 — Team v3: Developer role, strict approval, targeted testing, one final report
 - New **Developer** (local): builds owner-approved features and UX improvements on `feature/<name>` branches, in its own worktree.
 - **QA:** bugs and optimization only. It reviews Developer branches and still pushes fixes freelance.

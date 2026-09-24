@@ -21,8 +21,10 @@ Local session IDs (titles change; IDs don't. Wake an idle session with `SendMess
 
 ## Branches
 - `master`: released code. The app's updater reads `update.json` from here, so **nothing merges to master without the owner's approval.**
-- `claude/charming-planck-v3dszd`: the working branch (tested, next release). Only the Manager merges into it; QA may push bug and optimization fixes to it directly.
-- `feature/<name>`: one per Developer feature. It's merged into the working branch only after QA and IT are OK and the owner approves.
+- `claude/charming-planck-v3dszd`: the working branch (tested, next release). **Only the Manager pushes or merges into it.**
+- `feature/<name>`: one per Developer feature. QA pushes its fixes for that feature to the same branch. It's merged only after QA and IT are OK and the owner approves.
+- `qa/<topic>`: QA's own bug and optimization fixes. The Manager merges them after IT is OK.
+- **The Manager gives the final verdict:** it does the final merge and push, and creates every new version.
 - The main folder `C:\Users\Temp\Documents\PsychometricVocab` stays on the working branch. Local agents who need another branch use their own worktree, so they never switch branches under each other.
 
 ## Feature cycle
@@ -34,7 +36,7 @@ Local session IDs (titles change; IDs don't. Wake an idle session with `SendMess
 6. When everyone is done: the Manager sends the owner **one** final report and asks to merge, and later to release.
 
 ## Bug and optimization cycle
-QA (freelance) or the Manager fixes it on the working branch → IT tests only the fix → the Manager records it. The owner hears about it in the next final report.
+QA (freelance) pushes the fix to `qa/<topic>` → IT tests only the fix → the Manager merges it into the working branch. The owner hears about it in the next final report.
 
 ## How the agents talk
 - **Local ↔ local:** `SendMessage` to the session ID (or the name from `ListAgents`).
