@@ -5,6 +5,9 @@ Important decisions, newest on top. Format: `## YYYY-MM-DD — decision` then wh
 ## 2026-09-24 — The Manager does the final merge and every version
 QA no longer pushes to the working branch. It pushes to the feature branch it's reviewing, or to `qa/<topic>`. The Developer pushes to `feature/<name>`. The Manager gives the final verdict, merges into `claude/charming-planck-v3dszd`, and creates every version and release (releases need the owner's approval). Decided by the owner.
 
+## 2026-09-24 — Home revision: one screen, no scrolling
+After seeing d37dd05: units go back to ONE horizontal scrolling row, with compact, wide cards (icon beside the title) as in the mockup. "כל המילים" is a separate bigger card below the row, then the chart. Home should fit on one screen without vertical scrolling. Decided by the owner.
+
 ## 2026-09-24 — Home redesign (Feature C), owner spec from a Gemini mockup
 - Take from the mockup: one "מרכז המידע שלי" stats card (known / total / to review); "מסלולי למידה" unit cards (icon, title, progress bar, "התחל"), 2 per row, ALL units; "כל המילים" as a bigger full-width card in the middle, as in the mockup.
 - Do NOT take: duplicated review text ("כרטיסיות לחזרה" plus "0 לחזרה"); the mockup's colors (stay yellow and white); the mockup's HE|EN switch (the language pill stays exactly as it is, same place); ~~the daily-activity chart~~. *Update: the owner wants the daily-activity chart. It goes below the units and shows the last 7 days from a new per-day answer counter in SharedPreferences (no schema change), starting empty after the update.*
