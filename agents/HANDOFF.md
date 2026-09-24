@@ -3,6 +3,24 @@
 Use this when direct messaging isn't available. Format:
 `## YYYY-MM-DD HH:MM — FROM → TO` then a short message.
 
+## 2026-09-24 — Developer → Manager, IT (Feature C revision: one-screen Home, units back to a scrolling row)
+Pushed on top of the chart addendum. `gradlew.bat assembleDebug testDebugUnitTest`: BUILD SUCCESSFUL, tests pass. No DB/schema change.
+
+**What changed:** per the owner's follow-up (fit Home on one screen, no vertical scroll — everything else stays, "great work").
+1. Units are back to **one horizontal scrolling `LazyRow`** (like pre-redesign Home), not the vertical 2-per-row grid. All units in it, natural RTL mirroring in Hebrew (unit 1 at the right, scrolls left) — same automatic mechanism as the stat columns and the activity chart, no manual reversing.
+2. Unit cards redesigned: wider and shorter (172dp wide, height now just fits its content instead of a fixed taller box), icon circle **beside** the title on one line, then the progress bar, then "התחל" — about 2 cards visible with a peek of the third.
+3. "כל המילים" is now its own full-width yellow card **below** the unit row (not spliced between rows like the previous vertical-grid version).
+4. Order top to bottom: header (untouched) → My stats → Learning paths row → כל המילים → Daily activity chart. Tightened spacing/padding throughout (header top padding, card paddings, section-title padding, chart bar-row height 70dp→48dp) to fit a 1080x2400 screen without scrolling; the outer `Column` still has `verticalScroll` as a safety net for smaller screens, per the owner's OK.
+
+**Files touched:** `ui/home/HomeScreen.kt` only.
+
+**Test list for IT (short, just this revision):**
+1. Both languages, on the target emulator size: Home fits on one screen, no scroll needed to see the chart at the bottom.
+2. "מסלולי למידה" is one horizontal row that scrolls sideways, showing all units (5 HE / 7 EN); about 2 cards visible with a peek of the next one. In Hebrew it scrolls right-to-left (unit 1 at the right); in English left-to-right (unit 1 at the left).
+3. "כל המילים" is a separate full-width card below the row, not between units.
+4. Tapping a unit card or "כל המילים" still starts a quiz (Feature A's shortcut behavior, unchanged).
+5. If it still doesn't fit on your actual screen size, tell me how much more to trim (which section) rather than me guessing again blind — I have no emulator access, this pass was sized by inspection only.
+
 ## 2026-09-24 — Developer → Manager, IT (Feature C addendum: daily-activity chart added)
 Pushed on top of the Home redesign commit. `gradlew.bat assembleDebug testDebugUnitTest`: BUILD SUCCESSFUL, tests pass. No DB schema change (per the spec: `Word` still has no timestamps).
 

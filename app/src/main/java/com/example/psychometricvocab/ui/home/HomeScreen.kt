@@ -3,6 +3,8 @@ package com.example.psychometricvocab.ui.home
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -61,9 +63,9 @@ fun HomeScreen(
                 .background(
                     Brush.verticalGradient(listOf(Yellow.copy(alpha = 0.15f), OffWhite))
                 )
-                .padding(bottom = 20.dp)
+                .padding(bottom = 14.dp)
         ) {
-            Column(modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 72.dp)) {
+            Column(modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 56.dp)) {
                 // Greeting, subtitle and the Hebrew/English pill — unchanged from before the
                 // redesign, same position and style (the owner's mockup showed a different
                 // "HE | EN" switch here; that part of the mockup was not taken).
@@ -89,7 +91,7 @@ fun HomeScreen(
                     LanguageToggle()
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // ─── "מרכז המידע שלי" / My stats — one card, 3 columns ─────────
                 // Replaces 3 separate stat cards. Deliberately just one label per column: the
@@ -100,14 +102,14 @@ fun HomeScreen(
                     colors = CardDefaults.cardColors(containerColor = White),
                     modifier = Modifier.fillMaxWidth().shadow(3.dp, RoundedCornerShape(20.dp))
                 ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Text(
                             text = if (isHebrew) "מרכז המידע שלי" else "My stats",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
                         )
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(10.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -141,42 +143,42 @@ fun HomeScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
         // ─── "מסלולי למידה" / Learning paths ────────────────────────────────
-        // 2 unit cards per row, ALL units; "כל המילים" is a bigger full-width card placed
-        // after the first row, with the remaining units in rows of two below it — matches the
-        // mockup's layout (not its colors: yellow/white only, no salmon or purple).
+        // One horizontal scrolling row, ALL units — back from the vertical grid: the owner
+        // wants Home to fit on one screen with no vertical scrolling, so units scroll
+        // sideways instead of stacking. In Hebrew the row scrolls right-to-left (unit 1 at
+        // the right) the same way the old pre-redesign Home did — LazyRow mirrors for RTL
+        // automatically, same mechanism as the stat columns and the activity chart below.
+        // "כל המילים" is its own bigger full-width card, below the row (not spliced into it).
         SectionTitle(if (isHebrew) "מסלולי למידה" else "Learning paths")
-        Column(
-            modifier = Modifier.padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            val unitRows = state.units.chunked(2)
-            unitRows.firstOrNull()?.let { firstRow ->
-                UnitRow(
-                    units = firstRow,
-                    unitStats = state.unitStats,
+            items(state.units) { unit ->
+                val (known, total) = state.unitStats[unit] ?: (0 to 0)
+                UnitPathCard(
+                    unit = unit,
+                    known = known,
+                    total = total,
                     isHebrew = isHebrew,
-                    onClick = onGoToQuizShortcut
-                )
-            }
-            AllWordsCard(
-                total = state.totalWords,
-                isHebrew = isHebrew,
-                onClick = { onGoToQuizShortcut(null) }
-            )
-            unitRows.drop(1).forEach { row ->
-                UnitRow(
-                    units = row,
-                    unitStats = state.unitStats,
-                    isHebrew = isHebrew,
-                    onClick = onGoToQuizShortcut
+                    onClick = { onGoToQuizShortcut(unit) }
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
+
+        AllWordsCard(
+            total = state.totalWords,
+            isHebrew = isHebrew,
+            onClick = { onGoToQuizShortcut(null) },
+            modifier = Modifier.padding(horizontal = 20.dp)
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
 
         // ─── "הפעילות היומית" / Daily activity ─────────────────────────────
         ActivityChartCard(
@@ -185,36 +187,7 @@ fun HomeScreen(
             modifier = Modifier.padding(horizontal = 20.dp)
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
-    }
-}
-
-@Composable
-private fun UnitRow(
-    units: List<Int>,
-    unitStats: Map<Int, Pair<Int, Int>>,
-    isHebrew: Boolean,
-    onClick: (Int) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        units.forEach { unit ->
-            val (known, total) = unitStats[unit] ?: (0 to 0)
-            UnitPathCard(
-                unit = unit,
-                known = known,
-                total = total,
-                isHebrew = isHebrew,
-                onClick = { onClick(unit) },
-                modifier = Modifier.weight(1f)
-            )
-        }
-        // Odd unit out in this row: keep the other card at half width instead of full width.
-        if (units.size == 1) {
-            Spacer(modifier = Modifier.weight(1f))
-        }
+        Spacer(modifier = Modifier.height(8.dp))
     }
 }
 
@@ -225,7 +198,7 @@ private fun SectionTitle(text: String) {
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold,
         color = TextPrimary,
-        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
     )
 }
 
@@ -251,47 +224,55 @@ private fun StatColumn(
     }
 }
 
+// Wider and shorter than the vertical grid's cards, so ~2 fit on screen with a peek of the
+// third — the visual cue that the row scrolls. Icon sits beside the title on one line now
+// instead of stacked above it.
 @Composable
 private fun UnitPathCard(
     unit: Int,
     known: Int,
     total: Int,
     isHebrew: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    onClick: () -> Unit
 ) {
     val pct = if (total > 0) known.toFloat() / total else 0f
     Card(
-        modifier = modifier
-            .shadow(3.dp, RoundedCornerShape(18.dp))
+        modifier = Modifier
+            .width(172.dp)
+            .shadow(3.dp, RoundedCornerShape(16.dp))
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = White)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(Yellow.copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = YellowDark, modifier = Modifier.size(20.dp))
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(Yellow.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = YellowDark, modifier = Modifier.size(16.dp))
+                }
+                Text(
+                    text = if (isHebrew) "יחידה $unit" else "Unit $unit",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 15.sp,
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
             }
-            Spacer(Modifier.height(12.dp))
-            Text(
-                text = if (isHebrew) "יחידה $unit" else "Unit $unit",
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 16.sp,
-                color = TextPrimary,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-            )
             Spacer(Modifier.height(10.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(6.dp)
+                    .height(5.dp)
                     .clip(RoundedCornerShape(3.dp))
                     .background(SurfaceGray)
             ) {
@@ -302,7 +283,7 @@ private fun UnitPathCard(
                         .background(Yellow)
                 )
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
             Text(
                 text = if (isHebrew) "התחל" else "Start",
                 fontWeight = FontWeight.Bold,
@@ -314,9 +295,9 @@ private fun UnitPathCard(
 }
 
 @Composable
-private fun AllWordsCard(total: Int, isHebrew: Boolean, onClick: () -> Unit) {
+private fun AllWordsCard(total: Int, isHebrew: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .shadow(4.dp, RoundedCornerShape(18.dp))
             .clickable(onClick = onClick),
@@ -326,7 +307,7 @@ private fun AllWordsCard(total: Int, isHebrew: Boolean, onClick: () -> Unit) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -367,7 +348,7 @@ private fun ActivityChartCard(days: List<Pair<LocalDate, Int>>, isHebrew: Boolea
         colors = CardDefaults.cardColors(containerColor = White),
         modifier = modifier.fillMaxWidth().shadow(3.dp, RoundedCornerShape(20.dp))
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
             Text(
                 text = if (isHebrew) "הפעילות היומית" else "Daily activity",
                 style = MaterialTheme.typography.titleMedium,
@@ -375,16 +356,16 @@ private fun ActivityChartCard(days: List<Pair<LocalDate, Int>>, isHebrew: Boolea
                 color = TextPrimary
             )
             if (!hasActivity) {
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(2.dp))
                 Text(
                     text = if (isHebrew) "תרגל היום כדי לראות את הפעילות שלך" else "Practice today to see your activity",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
                 )
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(10.dp))
             Row(
-                modifier = Modifier.fillMaxWidth().height(70.dp),
+                modifier = Modifier.fillMaxWidth().height(48.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 days.forEach { (date, count) ->
@@ -398,16 +379,16 @@ private fun ActivityChartCard(days: List<Pair<LocalDate, Int>>, isHebrew: Boolea
                         ) {
                             // A day with no activity still gets a thin flat sliver rather than
                             // vanishing entirely, so the row reads as a baseline, not a gap.
-                            val fraction = (count.toFloat() / maxCount).coerceIn(0.05f, 1f)
+                            val fraction = (count.toFloat() / maxCount).coerceIn(0.08f, 1f)
                             Box(
                                 modifier = Modifier
-                                    .width(16.dp)
+                                    .width(14.dp)
                                     .fillMaxHeight(fraction)
-                                    .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                    .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
                                     .background(if (count > 0) Yellow else SurfaceGray)
                             )
                         }
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(4.dp))
                         Text(
                             text = dayLabel(date, isHebrew),
                             style = MaterialTheme.typography.labelSmall,
