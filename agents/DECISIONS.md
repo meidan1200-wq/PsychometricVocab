@@ -5,6 +5,9 @@ Important decisions, newest on top. Format: `## YYYY-MM-DD — decision` then wh
 ## 2026-09-24 — The Manager does the final merge and every version
 QA no longer pushes to the working branch. It pushes to the feature branch it's reviewing, or to `qa/<topic>`. The Developer pushes to `feature/<name>`. The Manager gives the final verdict, merges into `claude/charming-planck-v3dszd`, and creates every version and release (releases need the owner's approval). Decided by the owner.
 
+## 2026-09-24 — Quiz length is a 3-option pill: 5 / 10 / 15
+The owner asked the Developer directly: the slider felt fiddly, so it's a pill like the Hebrew/English toggle. Default is still 10. Decided by the owner.
+
 ## 2026-09-24 — Owner-approved feature set A/B/C (see TASKS.md)
 Quiz types stay 2 ("כל המילים" / "רק מילים שלא ידעתי"); "מילים קשות" meant the same thing. The quiz length is 5–15 (default 10), never 20 ("exhausting"). The review quiz is fixed at 10 for now. The Home redesign is optional and comes after the features, as a proposal first.
 
