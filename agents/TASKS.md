@@ -15,12 +15,12 @@ Owned by the Manager. Format: `- [ ] task — owner — status`.
 - [ ] Localize the update dialog, toasts and Play Protect guidance (currently English only) — unassigned
 - [ ] Startup: load the account profile off the main thread (8 s first splash) — unassigned
 - [ ] Owner decisions: what the "Learn" tab (tab 0) should show; dedupe quiz by headword; remember language across restarts
-- [ ] Flashcard memorize: one swipe once counted twice (seen once on the emulator, not reproduced in 3 retries) — QA — open; see HANDOFF 2026-09-24
+- [x] (fixed by QA in ead59a7, shipped in v1.1.5) Flashcard memorize: one swipe once counted twice (seen once on the emulator, not reproduced in 3 retries) — QA — open; see HANDOFF 2026-09-24
 
 ## Features approved by the owner 2026-09-24 (Developer), in this order
 - [x] **A. `feature/quiz-shortcuts`** (fe3a671: Developer + QA fixes + owner-requested 5/10/15 pill, IT OK; waiting for the owner's merge approval): Home unit cards start a quiz directly; per-unit remembered quiz type (2 types, default "כל המילים", persisted); quiz length selector 5–15 (default 10, persisted) in quiz settings; the "לחזרה" card starts a 10-word review quiz — Developer
-- [ ] **B. `feature/settings-auto-advance`** (efce6bf, IT OK 10/10; waiting for QA review and the owner's merge approval): the avatar opens a Settings screen (Account + preferences); "auto pass" toggle (right: short pause; wrong: mark it, blink the correct answer green, about 2–3 s, then next) — Developer
-- [ ] **C. `feature/home-redesign`** (c4e04f0, includes A+B; one-screen layout per owner feedback, IT measured OK; waiting for owner OK, then QA), owner spec in DECISIONS 2026-09-24: remove the quick actions that duplicate the bottom bar; calmer, fewer colors. The Developer sends design options and the owner picks before any code — Developer
+- [x] **B. `feature/settings-auto-advance`** (efce6bf, IT OK 10/10; waiting for QA review and the owner's merge approval): the avatar opens a Settings screen (Account + preferences); "auto pass" toggle (right: short pause; wrong: mark it, blink the correct answer green, about 2–3 s, then next) — Developer
+- [x] **C. `feature/home-redesign`** (c4e04f0, includes A+B; one-screen layout per owner feedback, IT measured OK; waiting for owner OK, then QA), owner spec in DECISIONS 2026-09-24: remove the quick actions that duplicate the bottom bar; calmer, fewer colors. The Developer sends design options and the owner picks before any code — Developer
 - Not needed now (owner): the Learn tab's content, remembering the language, slow first launch, Hebrew update dialog.
 - [x] (owner: leave it for now) Should the "רק מילים שלא ידעתי" quiz pool use only missed words (wrongCount>0), matching its gate? Today it's all not-known words (QA finding)
-- [ ] Release v1.1.5 (A+B+C + QA fixes, working branch 27fd377, APK sha256 7D58750B…71B4EBC6) — Manager — IT full regression + final APK OK; waiting for the owner's final go
+- [x] Release v1.1.5 — Manager — released 2026-09-25: GitHub release v1.1.5, master = 27fd377
