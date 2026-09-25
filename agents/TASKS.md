@@ -23,3 +23,4 @@ Owned by the Manager. Format: `- [ ] task — owner — status`.
 - [ ] **C. `feature/home-redesign`** (c4e04f0, includes A+B; one-screen layout per owner feedback, IT measured OK; waiting for owner OK, then QA), owner spec in DECISIONS 2026-09-24: remove the quick actions that duplicate the bottom bar; calmer, fewer colors. The Developer sends design options and the owner picks before any code — Developer
 - Not needed now (owner): the Learn tab's content, remembering the language, slow first launch, Hebrew update dialog.
 - [x] (owner: leave it for now) Should the "רק מילים שלא ידעתי" quiz pool use only missed words (wrongCount>0), matching its gate? Today it's all not-known words (QA finding)
+- [ ] Release v1.1.5 (A+B+C + QA fixes, working branch 27fd377, APK sha256 7D58750B…71B4EBC6) — Manager — IT full regression + final APK OK; waiting for the owner's final go
