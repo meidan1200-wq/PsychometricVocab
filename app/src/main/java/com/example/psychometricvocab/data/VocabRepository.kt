@@ -2,12 +2,18 @@ package com.example.psychometricvocab.data
 
 import kotlinx.coroutines.flow.Flow
 
-class VocabRepository(private val dao: WordDao) {
+class VocabRepository(
+    private val dao: WordDao,
+    // Optional: only the ViewModels that actually process answers (Quiz, Flashcard) pass one in,
+    // so every other VocabRepository(dao) construction site is untouched.
+    private val activityLog: ActivityLog? = null
+) {
 
     fun getAllWords(track: String): Flow<List<Word>> = dao.getAllWords(track)
     fun getWordsByUnit(track: String, unit: Int): Flow<List<Word>> = dao.getWordsByUnit(track, unit)
     fun getAllUnits(track: String): Flow<List<Int>> = dao.getAllUnits(track)
     fun getTotalCount(track: String): Flow<Int> = dao.getTotalCount(track)
+    fun getUnitProgress(track: String): Flow<List<UnitProgress>> = dao.getUnitProgress(track)
     fun getKnownCount(track: String): Flow<Int> = dao.getKnownCount(track)
     fun getUnknownCount(track: String): Flow<Int> = dao.getUnknownCount(track)
     fun getUpcomingReviews(track: String, limit: Int): Flow<List<Word>> = dao.getUpcomingReviews(track, limit)
@@ -26,6 +32,7 @@ class VocabRepository(private val dao: WordDao) {
     suspend fun processAnswer(word: Word, isCorrect: Boolean, isQuiz: Boolean = false, isNotSure: Boolean = false) {
         val updated = SrsEngine.processAnswer(word, isCorrect, isQuiz, isNotSure)
         dao.updateWord(updated)
+        activityLog?.recordAnswer()
     }
 
     suspend fun getWordsToReview(track: String, limit: Int): List<Word> = dao.getWordsToReview(track, limit)

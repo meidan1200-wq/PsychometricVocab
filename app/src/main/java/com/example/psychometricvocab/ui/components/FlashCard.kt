@@ -81,14 +81,22 @@ fun SwipeableFlashCard(
     var offsetX by remember { mutableFloatStateOf(0f) }
     var isFlipped by remember { mutableStateOf(false) }
     var isDismissed by remember { mutableStateOf(false) }
+    // Direction is fixed when the card is released, and the answer is reported once.
+    // finishedListener fires after *every* completed animation, and the dismissed card stays
+    // touchable while it flies out; a second touch restarted the animation and reported the
+    // card again (read from offsetX, usually reset to 0 by then → always "don't know").
+    var dismissedAsKnown by remember { mutableStateOf<Boolean?>(null) }
+    var answerReported by remember { mutableStateOf(false) }
 
     val animatedOffsetX by animateFloatAsState(
         targetValue = if (isDismissed) offsetX * 3f else offsetX,
         animationSpec = if (isDismissed) tween(300) else tween(50),
         label = "cardSwipe",
         finishedListener = {
-            if (isDismissed) {
-                if (offsetX > 0) onSwipeKnown() else onSwipeUnknown()
+            val known = dismissedAsKnown
+            if (isDismissed && known != null && !answerReported) {
+                answerReported = true
+                if (known) onSwipeKnown() else onSwipeUnknown()
             }
         }
     )
@@ -148,16 +156,20 @@ fun SwipeableFlashCard(
                     .pointerInput(word.id) {
                         detectDragGestures(
                             onDragEnd = {
-                                if (abs(offsetX) > swipeThresholdPx) {
-                                    isDismissed = true
-                                } else {
-                                    scope.launch { offsetX = 0f }
+                                if (!isDismissed) {
+                                    if (abs(offsetX) > swipeThresholdPx) {
+                                        dismissedAsKnown = offsetX > 0
+                                        isDismissed = true
+                                    } else {
+                                        scope.launch { offsetX = 0f }
+                                    }
                                 }
                             },
-                            onDragCancel = { scope.launch { offsetX = 0f } },
+                            onDragCancel = { if (!isDismissed) scope.launch { offsetX = 0f } },
                             onDrag = { change, dragAmount ->
                                 change.consume()
-                                offsetX += dragAmount.x
+                                // A dismissed card is on its way out: ignore further drags
+                                if (!isDismissed) offsetX += dragAmount.x
                             }
                         )
                     }

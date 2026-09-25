@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.example.psychometricvocab.data.ActivityLog
 import com.example.psychometricvocab.data.SrsEngine
 import com.example.psychometricvocab.data.VocabDatabase
 import com.example.psychometricvocab.data.VocabRepository
@@ -34,7 +35,7 @@ data class FlashcardUiState(
 }
 
 class FlashcardViewModel(app: Application) : AndroidViewModel(app) {
-    private val repo = VocabRepository(VocabDatabase.getInstance(app).wordDao())
+    private val repo = VocabRepository(VocabDatabase.getInstance(app).wordDao(), ActivityLog(app))
 
     private val _state = MutableStateFlow(FlashcardUiState())
     val state: StateFlow<FlashcardUiState> = _state.asStateFlow()
@@ -77,6 +78,15 @@ class FlashcardViewModel(app: Application) : AndroidViewModel(app) {
         if (s.sessionComplete) return
         advance(isKnown)
         viewModelScope.launch { repo.processAnswer(current, isCorrect = isKnown) }
+    }
+
+    /**
+     * A test-mode card reported its own swipe. Ignored unless [word] is still the current card,
+     * so a late callback from a card that is animating out can't answer the next card.
+     */
+    fun onCardSwiped(word: Word, isKnown: Boolean) {
+        if (_state.value.currentWord?.id != word.id) return
+        onSwipe(isKnown)
     }
 
     /** Sort-mode row swiped. Ignores repeated callbacks for a word that was already sorted. */

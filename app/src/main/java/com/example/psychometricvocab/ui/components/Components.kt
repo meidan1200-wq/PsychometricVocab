@@ -63,12 +63,14 @@ fun VocabTopBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // Navigation Icon or Avatar
+        // Navigation Icon or Avatar. Nothing (Home, Progress) now routes here with an
+        // onAvatarClick — Settings is reached through the Profile tab instead — but the slot
+        // stays generic rather than deleted outright, so a blank spacer keeps the title centered.
         if (onBack != null) {
             IconButton(onClick = onBack) {
                 Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
-        } else {
+        } else if (onAvatarClick != null) {
             // Profile Avatar
             Box(
                 modifier = Modifier
@@ -76,7 +78,7 @@ fun VocabTopBar(
                     .size(32.dp)
                     .clip(CircleShape)
                     .background(Yellow)
-                    .clickable(enabled = onAvatarClick != null) { onAvatarClick?.invoke() },
+                    .clickable(onClick = onAvatarClick),
                 contentAlignment = Alignment.Center
             ) {
                 if (profile.profileImageUri.isNotEmpty()) {
@@ -92,6 +94,8 @@ fun VocabTopBar(
                     Text("מ", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = TextPrimary)
                 }
             }
+        } else {
+            Spacer(modifier = Modifier.width(48.dp))
         }
 
         // Title
@@ -216,13 +220,13 @@ fun VocabBottomNav(
 ) {
     val appState = LocalAppState.current
     val items = if (appState.isHebrew) listOf(
-        NavItem("לומדות", Icons.AutoMirrored.Filled.MenuBook, Icons.AutoMirrored.Outlined.MenuBook),
+        NavItem("פרופיל", Icons.Filled.Person, Icons.Outlined.Person),
         NavItem("כרטיסיות", Icons.Filled.SwipeLeft, Icons.Outlined.SwipeLeft),
         NavItem("הבית", Icons.Filled.Home, Icons.Outlined.Home),
         NavItem("מבחן", Icons.Filled.Quiz, Icons.Outlined.Quiz),
         NavItem("התקדמות", Icons.Filled.BarChart, Icons.Outlined.BarChart)
     ) else listOf(
-        NavItem("Learn", Icons.AutoMirrored.Filled.MenuBook, Icons.AutoMirrored.Outlined.MenuBook),
+        NavItem("Profile", Icons.Filled.Person, Icons.Outlined.Person),
         NavItem("Cards", Icons.Filled.SwipeLeft, Icons.Outlined.SwipeLeft),
         NavItem("Home", Icons.Filled.Home, Icons.Outlined.Home),
         NavItem("Quiz", Icons.Filled.Quiz, Icons.Outlined.Quiz),

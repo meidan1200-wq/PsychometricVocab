@@ -1,5 +1,7 @@
 package com.example.psychometricvocab.ui.quiz
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.psychometricvocab.LocalAppState
+import com.example.psychometricvocab.data.QuizPreferences
 import com.example.psychometricvocab.data.VocabDatabase
 import com.example.psychometricvocab.data.VocabRepository
 import com.example.psychometricvocab.theme.*
@@ -37,11 +40,13 @@ fun QuizSettingsScreen(
     val isHebrew = appState.isHebrew
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val quizPrefs = remember { QuizPreferences(context) }
 
     var selectedUnit by remember { mutableStateOf<Int?>(null) }
     var unknownOnly by remember { mutableStateOf(false) }
     var units by remember { mutableStateOf(listOf<Int>()) }
     var hardestWordsCount by remember { mutableStateOf(0) }
+    var quizLength by remember { mutableStateOf(quizPrefs.getQuizLength()) }
 
     // Load units
     LaunchedEffect(appState.track) {
@@ -58,6 +63,19 @@ fun QuizSettingsScreen(
             repo.getHardestWordsCountByUnit(appState.track, selectedUnit!!).collect { count -> hardestWordsCount = count }
         }
     }
+
+    // Show the type saved for this unit (defaulting to "all words"). Just reads the radio
+    // state — the saved preference itself is only overwritten when the user presses Start.
+    LaunchedEffect(appState.track, selectedUnit) {
+        unknownOnly = quizPrefs.getUnknownOnly(appState.track, selectedUnit) ?: false
+    }
+
+    // Gate matches the quiz length: there's no point offering a "words I missed" quiz shorter
+    // than a full one. Derived rather than written back into `unknownOnly` during composition:
+    // the hard-word count starts at 0 until the DB answers, and the old write-back reset the
+    // saved per-unit "missed" choice to "all words" before the real count arrived.
+    val hasEnoughHardWords = hardestWordsCount >= quizLength
+    val effectiveUnknownOnly = unknownOnly && hasEnoughHardWords
 
     Scaffold(
         topBar = {
@@ -148,15 +166,10 @@ fun QuizSettingsScreen(
                     )
                     Spacer(Modifier.height(8.dp))
 
-                    val hasEnoughHardWords = hardestWordsCount >= 20
-                    if (!hasEnoughHardWords && unknownOnly) {
-                        unknownOnly = false
-                    }
-
                     FilterOptionRow(
                         label = if (isHebrew) "כל המילים" else "All words",
                         subtitle = if (isHebrew) "מבחן על כל המילים" else "Quiz on all words",
-                        selected = !unknownOnly,
+                        selected = !effectiveUnknownOnly,
                         enabled = true,
                         onClick = { unknownOnly = false }
                     )
@@ -164,14 +177,52 @@ fun QuizSettingsScreen(
                     FilterOptionRow(
                         label = if (isHebrew) "רק מילים שלא ידעתי" else "Words I missed",
                         subtitle = if (!hasEnoughHardWords) {
-                            if (isHebrew) "אין מספיק מילים קשות (צריך לפחות 20)" else "Not enough hard words (need 20+)"
+                            if (isHebrew) "אין מספיק מילים קשות (צריך לפחות $quizLength)" else "Not enough hard words (need $quizLength+)"
                         } else {
                             if (isHebrew) "תרגול מילים קשות" else "Practice difficult words"
                         },
-                        selected = unknownOnly,
+                        selected = effectiveUnknownOnly,
                         enabled = hasEnoughHardWords,
                         onClick = { if (hasEnoughHardWords) unknownOnly = true }
                     )
+                }
+            }
+
+            // Quiz length
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = White)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = if (isHebrew) "אורך המבחן" else "Quiz length",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    // A 3-way pill, same style as the language toggle above, instead of a
+                    // slider: the owner only ever wants 5, 10 or 15 words, never in between.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(50))
+                            .background(SurfaceGray)
+                            .padding(4.dp)
+                    ) {
+                        QuizPreferences.ALLOWED_LENGTHS.forEach { length ->
+                            QuizLengthChip(
+                                label = if (isHebrew) "$length מילים" else "$length words",
+                                selected = quizLength == length,
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    quizLength = length
+                                    // Save immediately, same as before: leaving the screen
+                                    // without pressing Start still keeps the new length.
+                                    quizPrefs.setQuizLength(length)
+                                }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -180,7 +231,11 @@ fun QuizSettingsScreen(
             // Start button
             YellowButton(
                 text = if (isHebrew) "התחל מבחן!" else "Start Quiz!",
-                onClick = { onStartQuiz(selectedUnit, unknownOnly) },
+                onClick = {
+                    quizPrefs.setQuizLength(quizLength)
+                    quizPrefs.setUnknownOnly(appState.track, selectedUnit, effectiveUnknownOnly)
+                    onStartQuiz(selectedUnit, effectiveUnknownOnly)
+                },
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -228,6 +283,35 @@ private fun FilterOptionRow(label: String, subtitle: String, selected: Boolean, 
             onClick = if (enabled) onClick else null,
             enabled = enabled,
             colors = RadioButtonDefaults.colors(selectedColor = Yellow, unselectedColor = DividerGray)
+        )
+    }
+}
+
+// Same pill-chip look as the Hebrew/English language toggle (Components.kt's ToggleChip is
+// private to that file, so this is a small twin rather than a shared export).
+@Composable
+private fun QuizLengthChip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val bgColor by animateColorAsState(
+        targetValue = if (selected) Yellow else Color.Transparent,
+        animationSpec = tween(200), label = "quizLengthChipBg"
+    )
+    val textColor by animateColorAsState(
+        targetValue = if (selected) TextPrimary else TextSecondary,
+        animationSpec = tween(200), label = "quizLengthChipText"
+    )
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(bgColor)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = textColor,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            textAlign = TextAlign.Center
         )
     }
 }

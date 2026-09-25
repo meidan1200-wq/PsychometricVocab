@@ -13,6 +13,7 @@ import com.example.psychometricvocab.ui.progress.ProgressScreen
 import com.example.psychometricvocab.ui.quiz.QuizScreen
 import com.example.psychometricvocab.ui.quiz.QuizSettingsScreen
 import com.example.psychometricvocab.ui.account.AccountScreen
+import com.example.psychometricvocab.ui.settings.SettingsScreen
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -56,8 +57,7 @@ fun MainNavigation() {
 
 @Composable
 fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui.account.AccountViewModel = viewModel()) {
-    // Tab indices match VocabBottomNav: 2 is the centre Home button. Starting on 0 highlighted
-    // the "Learn" tab while Home was showing.
+    // Tab indices match VocabBottomNav: 0 is "Profile" (Settings), 2 is the centre Home button.
     var currentTab by rememberSaveable { mutableIntStateOf(HOME_TAB) }
     var subScreen by rememberSaveable(stateSaver = SubScreenSaver) { mutableStateOf<Any?>(null) }
     var progressExpandUnit by rememberSaveable { mutableStateOf<Int?>(null) }
@@ -129,25 +129,24 @@ fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui
                         unit = key.unit,
                         unknownOnly = key.unknownOnly,
                         isReviewMode = key.isReviewMode,
+                        useSavedPreference = key.useSavedPreference,
                         onBack = { subScreen = null }
                     )
                 }
                 // ── Account sub-screen ───────────────────────────────────
+                // Back from Account clears this and falls through to the tab root below —
+                // for the Profile tab (index 0), that's Settings, per the spec.
                 subScreen is AccountKey -> {
                     AccountScreen(onBack = { subScreen = null })
                 }
                 // ── Tab roots ────────────────────────────────────────────
                 else -> when (currentTab) {
                     0 -> {
-                        HomeScreen(
-                            onGoToFlashcard = { unit -> subScreen = FlashcardKey(unit) },
-                            onGoToQuiz = { subScreen = QuizSettingsKey },
-                            onGoToProgress = { unit -> 
-                                progressExpandUnit = unit
-                                currentTab = 4 
-                            },
-                            onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) },
-                            onAvatarClick = { subScreen = AccountKey }
+                        // "Profile" tab: Settings is the tab's own content, not a pushed
+                        // sub-screen, so there's no back arrow (like Progress below).
+                        SettingsScreen(
+                            onGoToAccount = { subScreen = AccountKey },
+                            onBack = null
                         )
                     }
                     1 -> {
@@ -161,14 +160,12 @@ fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui
                     }
                     2 -> {
                         HomeScreen(
-                            onGoToFlashcard = { unit -> subScreen = FlashcardKey(unit) },
-                            onGoToQuiz = { subScreen = QuizSettingsKey },
+                            onGoToQuizShortcut = { unit -> subScreen = QuizKey(unit = unit, unknownOnly = false, useSavedPreference = true) },
                             onGoToProgress = { unit -> 
                                 progressExpandUnit = unit
                                 currentTab = 4 
                             },
-                            onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) },
-                            onAvatarClick = { subScreen = AccountKey }
+                            onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) }
                         )
                     }
                     3 -> {
@@ -182,20 +179,17 @@ fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui
                     4 -> {
                         ProgressScreen(
                             autoExpandUnit = progressExpandUnit,
-                            onBack = null,
-                            onAvatarClick = { subScreen = AccountKey }
+                            onBack = null
                         )
                     }
                     else -> {
                         HomeScreen(
-                            onGoToFlashcard = { unit -> subScreen = FlashcardKey(unit) },
-                            onGoToQuiz = { subScreen = QuizSettingsKey },
+                            onGoToQuizShortcut = { unit -> subScreen = QuizKey(unit = unit, unknownOnly = false, useSavedPreference = true) },
                             onGoToProgress = { unit -> 
                                 progressExpandUnit = unit
                                 currentTab = 4 
                             },
-                            onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) },
-                            onAvatarClick = { subScreen = AccountKey }
+                            onGoToReview = { subScreen = QuizKey(unit = null, unknownOnly = false, isReviewMode = true) }
                         )
                     }
                 }

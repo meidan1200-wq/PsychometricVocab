@@ -3,6 +3,9 @@ package com.example.psychometricvocab.data
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
+/** Per-unit progress, aggregated in SQL. Not an entity: no schema change. */
+data class UnitProgress(val unit: Int, val known: Int, val total: Int)
+
 @Dao
 interface WordDao {
     @Query("SELECT * FROM words WHERE track = :track ORDER BY unit ASC, id ASC")
@@ -25,6 +28,9 @@ interface WordDao {
 
     @Query("SELECT COUNT(*) FROM words WHERE track = :track")
     fun getTotalCount(track: String): Flow<Int>
+
+    @Query("SELECT unit, SUM(isKnown) AS known, COUNT(*) AS total FROM words WHERE track = :track GROUP BY unit ORDER BY unit ASC")
+    fun getUnitProgress(track: String): Flow<List<UnitProgress>>
 
     @Query("SELECT COUNT(*) FROM words WHERE track = :track AND isKnown = 1")
     fun getKnownCount(track: String): Flow<Int>
