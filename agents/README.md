@@ -10,7 +10,7 @@ The owner (meidan1200-wq) runs this project with a team of Claude agents. Every 
 | **IT** | Owner's PC (local), own worktree `..\PsychometricVocab-it` | Builds and tests on the emulator: only what changed | [IT.md](IT.md) |
 
 Local session IDs (titles change; IDs don't. Wake an idle session with `SendMessage` to its ID):
-- Manager: title "Project manager setup"
+- Manager: `local_1a4f4c15-38ad-42e5-8b7b-5afd906c71fc` (title "ProjectManager setup")
 - IT: `local_a744400b-2386-4db3-bdcb-73afd0457c9d`
 - Developer: `local_36a43943-7269-4a1d-9b7c-da35668d3be3`
 
