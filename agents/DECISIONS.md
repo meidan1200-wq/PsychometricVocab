@@ -5,6 +5,11 @@ Important decisions, newest on top. Format: `## YYYY-MM-DD — decision` then wh
 ## 2026-09-24 — The Manager does the final merge and every version
 QA no longer pushes to the working branch. It pushes to the feature branch it's reviewing, or to `qa/<topic>`. The Developer pushes to `feature/<name>`. The Manager gives the final verdict, merges into `claude/charming-planck-v3dszd`, and creates every version and release (releases need the owner's approval). Decided by the owner.
 
+## 2026-10-14 — Cross-app sync with MAFAM (plan only, nothing built)
+Agreed in principle with the MAFAM project manager; the owner accepted it per that manager. Firebase (Spark) + Google Sign-In for one uid across both apps; Firestore for PROGRESS only; each app has a swappable sync interface with records {uid, app, itemKey, data, updatedAt}, last-write-wins per item; the combined progress view will be a MAFAM web screen.
+**Our binding safety rules (owner: "keep the data on my phone safe"):** sign-in and sync never wipe or reset local progress, and the first sign-in uploads local progress as the starting state; replace `fallbackToDestructiveMigration` with real, tested Migrations BEFORE any schema bump; the item key is a stable per-word id, never the Room id.
+Waiting on: the owner creates the Firebase project; MAFAM sends `docs/sync-spec.md`. No code before both, and before the owner approves the feature here.
+
 ## 2026-09-24 — Home revision: one screen, no scrolling
 After seeing d37dd05: units go back to ONE horizontal scrolling row, with compact, wide cards (icon beside the title) as in the mockup. "כל המילים" is a separate bigger card below the row, then the chart. Home should fit on one screen without vertical scrolling. Decided by the owner.
 
