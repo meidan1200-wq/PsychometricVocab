@@ -14,6 +14,8 @@ android {
         targetSdk = 36
         versionCode = 7
         versionName = "1.1.5"
+        // Needed for the new instrumented MigrationTest (AndroidJUnit4); nothing used it before.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -38,10 +40,23 @@ android {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
       }
     }
+
+    // Room's exported schema JSONs (app/schemas/...) double as the androidTest
+    // MigrationTestHelper's input, so the migration test can validate a real migration's
+    // result against them.
+    sourceSets {
+        getByName("androidTest") {
+            assets.srcDirs("$projectDir/schemas")
+        }
+    }
 }
 
 kotlin {
     jvmToolchain(17)
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -89,6 +104,7 @@ dependencies {
   implementation(libs.room.runtime)
   implementation(libs.room.ktx)
   ksp(libs.room.compiler)
+  androidTestImplementation(libs.room.testing)
 
   // Gson
   implementation(libs.gson)

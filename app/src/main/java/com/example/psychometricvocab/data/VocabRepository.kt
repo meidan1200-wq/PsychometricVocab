@@ -30,7 +30,10 @@ class VocabRepository(
         if (unit == null) dao.getAllWordsForReview(track) else dao.getWordsForReview(track, unit)
 
     suspend fun processAnswer(word: Word, isCorrect: Boolean, isQuiz: Boolean = false, isNotSure: Boolean = false) {
+        // updatedAt = now: the cloud-sync merge (Phase 3) is last-write-wins per word, so every
+        // real progress change needs a fresh timestamp to win against older remote state.
         val updated = SrsEngine.processAnswer(word, isCorrect, isQuiz, isNotSure)
+            .copy(updatedAt = System.currentTimeMillis())
         dao.updateWord(updated)
         activityLog?.recordAnswer()
     }
