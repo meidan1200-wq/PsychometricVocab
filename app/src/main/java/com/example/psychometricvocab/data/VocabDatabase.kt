@@ -28,10 +28,10 @@ abstract class VocabDatabase : RoomDatabase() {
 
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                // Merge duplicate definitions for "אֲלוּמָּה"
+                // Merge duplicate definitions for "אֲלוּמָּה"
                 val mergedDef = "1. חבילת שיבולים קצורות\n2. גלים המשודרים בטווח צר, קרן (אלומת אור - קרן אור)"
-                database.execSQL("UPDATE words SET definition = '$mergedDef' WHERE word = 'אֲלוּמָּה' AND id = (SELECT MIN(id) FROM words WHERE word = 'אֲלוּמָּה')")
-                database.execSQL("DELETE FROM words WHERE word = 'אֲלוּמָּה' AND id != (SELECT MIN(id) FROM words WHERE word = 'אֲלוּמָּה')")
+                database.execSQL("UPDATE words SET definition = '$mergedDef' WHERE word = 'אֲלוּמָּה' AND id = (SELECT MIN(id) FROM words WHERE word = 'אֲלוּמָּה')")
+                database.execSQL("DELETE FROM words WHERE word = 'אֲלוּמָּה' AND id != (SELECT MIN(id) FROM words WHERE word = 'אֲלוּמָּה')")
             }
         }
 
@@ -51,14 +51,15 @@ abstract class VocabDatabase : RoomDatabase() {
             return INSTANCE ?: synchronized(this) {
                 val backupOk = BackupManager.backupBeforeMigrationIfNeeded(context)
                 if (!backupOk) {
-                    // Backup failed: log it loudly rather than fail silently. We still proceed —
-                    // MIGRATION_4_5 only adds a column and an index, never rewrites or drops a
-                    // row, so it doesn't itself put existing progress at risk the way a
+                    // BackupManager already tried external storage, then internal storage, and
+                    // still failed both. Log it loudly rather than fail silently. We still
+                    // proceed — MIGRATION_4_5 only adds a column and an index, never rewrites or
+                    // drops a row, so it doesn't itself put existing progress at risk the way a
                     // destructive migration would. A true non-migrating fallback path (a second,
                     // v4-only database + its own DAO, wired through every screen) would be a
-                    // large, untested subsystem for a rare I/O failure; flagged in the HANDOFF
-                    // for the Manager/owner to weigh in on rather than shipped unverified.
-                    Log.e(TAG, "Pre-migration backup failed (see BackupManager log above); proceeding with migration anyway.")
+                    // large, untested subsystem for a rare double I/O failure; flagged in the
+                    // HANDOFF for the Manager/owner to weigh in on rather than shipped unverified.
+                    Log.e(TAG, "Pre-migration backup failed on both external and internal storage; proceeding with migration anyway.")
                 }
 
                 val instance = Room.databaseBuilder(
