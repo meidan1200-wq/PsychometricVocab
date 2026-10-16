@@ -5,6 +5,9 @@ Important decisions, newest on top. Format: `## YYYY-MM-DD — decision` then wh
 ## 2026-09-24 — The Manager does the final merge and every version
 QA no longer pushes to the working branch. It pushes to the feature branch it's reviewing, or to `qa/<topic>`. The Developer pushes to `feature/<name>`. The Manager gives the final verdict, merges into `claude/charming-planck-v3dszd`, and creates every version and release (releases need the owner's approval). Decided by the owner.
 
+## 2026-10-16 — The export build ships as v1.1.6 through OTA
+Owner request (via the MAFAM manager): deliver the export build as a normal update rather than a sideload. v1.1.6 (versionCode 8) = v1.1.5 + the read-only "Export my data (test)" button; no schema change, same key. S1/S2 become v1.1.7+, and their upgrade test starts from v1.1.6. This supersedes "the next real release is versionCode 8" below.
+
 ## 2026-10-16 — Real-data copy via a one-time export build
 The owner told IT directly: build a test version from v1.1.5 with an "export my data" option. He installs it on his phone, exports, and IT runs the S1 migration test on that export. Guardrails (Manager): branch `it/export-build` from 27fd377, versionCode stays 7 (versionName 1.1.5-export), same debug key, read-only export (checkpoint WAL; DB + prefs zip via the share sheet), never published via update.json or master, tested on the emulator first. **The next real release (S1/S2) is versionCode 8.**
 
