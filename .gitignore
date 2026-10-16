@@ -16,3 +16,6 @@ local.properties
 
 # IT screenshots stay on the PC
 agents/reports/it-*/
+
+# Firebase config: kept local (public repo)
+app/google-services.json
