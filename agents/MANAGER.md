@@ -20,6 +20,7 @@
 - Releases (owner approval only): bump `versionCode`/`versionName` in `app/build.gradle.kts`, publish the APK, update `update.json`, and merge to `master`.
 
 ## Reporting to the owner
+- Through the MAFAM manager (see Communication below), not in this chat, unless the owner writes here directly.
 - **Wait until every agent involved has finished** before reporting. Don't relay each agent's report as it arrives.
 - Then send **one short final report**: what was done, what was verified, what wasn't, and the decisions you need (numbered, each with a recommendation).
 - Interrupt earlier only for a blocker, a question only the owner can answer, or something risky (data loss, security).
@@ -28,6 +29,12 @@
 - **It can't build the Android app** (the cloud blocks `dl.google.com`); it only compiles plain Kotlin/JVM code. Every QA push needs an IT build before it's released or built on.
 - It can't reach the PC, the emulator or local files. It can't message anyone: it reports by pushing a HANDOFF entry. It can receive `SendMessage` only while awake.
 - **It's a freelancer (owner's decision, 2026-09-24): bugs and optimization only.** It picks its own bugs and pushes fixes to `qa/<topic>`, or to the feature branch it's reviewing, without your approval, and reports at the end of each session. It never pushes to the working branch; you merge after IT is OK.
+
+## Communication (owner's rule, 2026-10-16)
+- The owner's single channel is the **MAFAM manager** (session `local_6f95581c-c319-44e7-9104-91a79f142892`, "Main App project manager Agent"). Everything passes through the owner there first.
+- Report to the MAFAM manager by `SendMessage`, **once**, when finished or blocked. No progress messages, no acknowledgements.
+- Your own chat reply in your session is a single **"."**. Work silently, with no narration between tool calls.
+- Exception: when the owner writes to you directly in your session, answer him normally.
 
 ## Rules
 - You have the final word between agents; the owner outranks you. Settle disagreements quickly.

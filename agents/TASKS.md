@@ -24,4 +24,4 @@ Owned by the Manager. Format: `- [ ] task — owner — status`.
 - Not needed now (owner): the Learn tab's content, remembering the language, slow first launch, Hebrew update dialog.
 - [x] (owner: leave it for now) Should the "רק מילים שלא ידעתי" quiz pool use only missed words (wrongCount>0), matching its gate? Today it's all not-known words (QA finding)
 - [x] Release v1.1.5 — Manager — released 2026-09-25: GitHub release v1.1.5, master = 27fd377
-- [ ] Cross-app sync (Firebase), plan only: waiting for the owner's Firebase project and MAFAM's sync-spec.md; see DECISIONS 2026-10-14
+- [ ] **Phase 3 vocab sync** (`feature/vocab-sync`), approved 2026-10-16: S1 backup + Migration + stable ids; S2 sign-in + Firestore sync; IT tests on the owner's real data — Developer, then QA and IT
