@@ -28,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.psychometricvocab.LocalAppState
+import com.example.psychometricvocab.data.DataExporter
 import com.example.psychometricvocab.theme.*
 import com.example.psychometricvocab.ui.components.VocabTopBar
 import com.example.psychometricvocab.ui.components.YellowButton
@@ -161,6 +162,26 @@ fun AccountScreen(
                     Toast.makeText(context, if (isHebrew) "החשבון נשמר!" else "Local data securely linked to account!", Toast.LENGTH_SHORT).show()
                 }
             )
+
+            Spacer(Modifier.height(16.dp))
+
+            // TEMPORARY, test-build only: lets the owner pull his own real progress data off
+            // this phone for the v1.1.6 cloud-sync migration test. Remove after that ships.
+            TextButton(onClick = {
+                try {
+                    val uri = DataExporter.exportToZip(context)
+                    val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "application/zip"
+                        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(android.content.Intent.createChooser(shareIntent, "Save or send export"))
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }) {
+                Text(if (isHebrew) "ייצוא הנתונים שלי (בדיקה)" else "Export my data (test)", color = YellowDark, fontWeight = FontWeight.Bold)
+            }
 
             Spacer(Modifier.weight(1f))
 
