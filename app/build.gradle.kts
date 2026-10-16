@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.psychometricvocab"
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
-        versionName = "1.1.5-export"
+        versionCode = 8
+        versionName = "1.1.6"
     }
 
     buildTypes {
