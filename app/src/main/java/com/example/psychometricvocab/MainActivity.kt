@@ -1,7 +1,9 @@
 package com.example.psychometricvocab
 
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,7 +15,14 @@ import com.example.psychometricvocab.theme.PsychometricVocabTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // The app only has a light theme, but the default enableEdgeToEdge() picks light/dark
+        // system-bar icons from the PHONE's night mode: on a device in dark mode (the owner's
+        // Samsung) that gave white clock/battery icons on our light yellow header. Force dark
+        // icons on transparent bars, always, since every screen's top is light.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+        )
         setContent {
             PsychometricVocabTheme {
                 Surface(
