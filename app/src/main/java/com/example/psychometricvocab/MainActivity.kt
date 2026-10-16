@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import com.example.psychometricvocab.data.sync.SyncCoordinator
 import com.example.psychometricvocab.theme.PsychometricVocabTheme
 
 class MainActivity : ComponentActivity() {
@@ -37,6 +38,8 @@ class MainActivity : ComponentActivity() {
         // Check for updates on a fresh start only, not on every recreation (rotation, theme
         // change, returning after the process was killed)
         if (savedInstanceState == null) {
+            // Quiet catch-up with the cloud backup if already signed in (no-op otherwise).
+            SyncCoordinator.get(this).onAppStart()
             val updateManager = UpdateManager(this, "https://raw.githubusercontent.com/meidan1200-wq/PsychometricVocab/master/update.json")
             updateManager.checkForUpdates()
         }

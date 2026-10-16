@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.example.psychometricvocab.data.ActivityLog
+import com.example.psychometricvocab.data.sync.SyncCoordinator
 import com.example.psychometricvocab.data.SrsEngine
 import com.example.psychometricvocab.data.VocabDatabase
 import com.example.psychometricvocab.data.VocabRepository
@@ -35,7 +36,11 @@ data class FlashcardUiState(
 }
 
 class FlashcardViewModel(app: Application) : AndroidViewModel(app) {
-    private val repo = VocabRepository(VocabDatabase.getInstance(app).wordDao(), ActivityLog(app))
+    private val repo = VocabRepository(
+        VocabDatabase.getInstance(app).wordDao(),
+        ActivityLog(app),
+        SyncCoordinator.get(app)::onWordChanged
+    )
 
     private val _state = MutableStateFlow(FlashcardUiState())
     val state: StateFlow<FlashcardUiState> = _state.asStateFlow()

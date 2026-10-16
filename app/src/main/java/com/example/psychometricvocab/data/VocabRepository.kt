@@ -6,7 +6,9 @@ class VocabRepository(
     private val dao: WordDao,
     // Optional: only the ViewModels that actually process answers (Quiz, Flashcard) pass one in,
     // so every other VocabRepository(dao) construction site is untouched.
-    private val activityLog: ActivityLog? = null
+    private val activityLog: ActivityLog? = null,
+    // Optional cloud-sync hook (Phase 3): told which word (by stableId) just changed.
+    private val onWordChanged: ((String?) -> Unit)? = null
 ) {
 
     fun getAllWords(track: String): Flow<List<Word>> = dao.getAllWords(track)
@@ -36,6 +38,7 @@ class VocabRepository(
             .copy(updatedAt = System.currentTimeMillis())
         dao.updateWord(updated)
         activityLog?.recordAnswer()
+        onWordChanged?.invoke(updated.stableId)
     }
 
     suspend fun getWordsToReview(track: String, limit: Int): List<Word> = dao.getWordsToReview(track, limit)

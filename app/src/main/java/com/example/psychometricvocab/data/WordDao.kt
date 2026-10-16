@@ -93,6 +93,17 @@ interface WordDao {
     @Query("SELECT COUNT(*) FROM words WHERE stableId IS NULL")
     suspend fun countMissingStableId(): Int
 
+    // ─── Cloud sync (Phase 3 S2) ─────────────────────────────────────────────
+    /** Every word that has a sync identity (a word without a stableId is never synced). */
+    @Query("SELECT * FROM words WHERE stableId IS NOT NULL")
+    suspend fun getSyncableWords(): List<Word>
+
+    @Update
+    suspend fun updateWords(words: List<Word>)
+
+    @Query("SELECT * FROM words WHERE stableId = :stableId LIMIT 1")
+    suspend fun getByStableId(stableId: String): Word?
+
     @Query("SELECT * FROM words WHERE track = :track AND isKnown = 0 ORDER BY nextReviewDate ASC LIMIT :limit")
     fun getUpcomingReviews(track: String, limit: Int): Flow<List<Word>>
 

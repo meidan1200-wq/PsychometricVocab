@@ -137,6 +137,8 @@ fun SettingsScreen(
                 }
             }
 
+            CloudBackupRow()
+
             Spacer(Modifier.height(24.dp))
         }
     }
