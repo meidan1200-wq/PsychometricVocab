@@ -25,3 +25,5 @@ Owned by the Manager. Format: `- [ ] task — owner — status`.
 - [x] (owner: leave it for now) Should the "רק מילים שלא ידעתי" quiz pool use only missed words (wrongCount>0), matching its gate? Today it's all not-known words (QA finding)
 - [x] Release v1.1.5 — Manager — released 2026-09-25: GitHub release v1.1.5, master = 27fd377
 - [ ] **Phase 3 vocab sync** (`feature/vocab-sync`), approved 2026-10-16: S1 backup + Migration + stable ids; S2 sign-in + Firestore sync; IT tests on the owner's real data — Developer, then QA and IT
+- [x] Release v1.1.6 (export button) — Manager — released 2026-10-16, master = ded36f5
+- [ ] S1 upgrade test on the owner's real export (from v1.1.6) — IT — waiting for his zip
