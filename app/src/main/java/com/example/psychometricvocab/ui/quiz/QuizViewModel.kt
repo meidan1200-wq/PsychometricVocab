@@ -38,6 +38,17 @@ data class QuizUiState(
     val currentQuestion get() = questions.getOrNull(currentIndex)
     val total get() = questions.size
     val progress get() = currentIndex
+
+    /**
+     * The pure transition behind QuizViewModel.onNext(expectedIndex): moves to the next question
+     * only if still on [expectedIndex]; otherwise returns this state unchanged (a duplicate
+     * Next for a question that was already left).
+     */
+    fun advanceFrom(expectedIndex: Int): QuizUiState {
+        if (currentIndex != expectedIndex) return this
+        val nextIndex = currentIndex + 1
+        return copy(currentIndex = nextIndex, sessionComplete = nextIndex >= questions.size)
+    }
 }
 
 class QuizViewModel(app: Application) : AndroidViewModel(app) {
@@ -153,10 +164,15 @@ class QuizViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun onNext() {
-        val s = _state.value
-        val nextIndex = s.currentIndex + 1
-        _state.update { it.copy(currentIndex = nextIndex, sessionComplete = nextIndex >= it.questions.size) }
+    /**
+     * Advances ONLY if the quiz is still on [expectedIndex], the question the caller (the manual
+     * Next button or the auto-pass timer) belongs to. The check and the advance are one atomic
+     * `update`, so any second call for the same question — a double tap, a tap during the
+     * button's exit animation (it stays clickable while sliding out, with a stale closure), or a
+     * tap landing as the auto-pass timer fires — is a no-op instead of skipping a question.
+     */
+    fun onNext(expectedIndex: Int) {
+        _state.update { it.advanceFrom(expectedIndex) }
     }
 
     companion object {
