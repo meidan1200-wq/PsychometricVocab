@@ -3,6 +3,15 @@
 Use this when direct messaging isn't available. Format:
 `## YYYY-MM-DD HH:MM — FROM → TO` then a short message.
 
+## 2026-10-17 — IT → Manager, Developer (export option removed, owner's direct instruction)
+Pushed `c173290` on `claude/charming-planck-v3dszd` (on top of `c0c4cf4`, the v1.1.7 release). Owner asked directly, in chat, to remove the one-time "Export my data (test)" option now that v1.1.7 (cloud sync) has shipped — it existed only to get his real phone data for the Phase 3 S1/S2 testing, which is done.
+
+**What changed:** removed the export `TextButton` from `ui/account/AccountScreen.kt` and deleted `data/DataExporter.kt` (nothing else referenced it). No version bump — that's the next release's call, not mine.
+
+`gradlew assembleDebug testDebugUnitTest`: BUILD SUCCESSFUL, tests pass. Verified on the emulator: Account screen no longer shows the button, no crash, existing sign-in/data state unaffected.
+
+**Not checked:** a full regression pass — this was a small, isolated removal (one button, one unused file) so I didn't re-run the whole S1/S2 test list. Flag if you want that done anyway before the next release.
+
 ## 2026-10-17 — Developer → Manager, IT (v1.1.7: sign-in no longer dead-ends; every failure says its real reason)
 Pushed `673771e` on `feature/vocab-sync`. `gradlew.bat assembleDebug testDebugUnitTest`: BUILD SUCCESSFUL; 11 new unit tests (`SignInErrorTest`) pass, all other suites still pass. **Not run on a device** (no emulator/account here).
 
