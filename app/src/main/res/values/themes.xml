@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.PsychometricVocab" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- windowLightStatusBar: dark status-bar icons from the very first frame, before Compose
+         (and enableEdgeToEdge in MainActivity) has run. The app has no dark theme. -->
+    <style name="Theme.PsychometricVocab" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
 </resources>

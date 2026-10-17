@@ -71,9 +71,38 @@ interface WordDao {
     @Query("SELECT * FROM words WHERE track = :track AND unit = :unit AND wrongCount > 0 AND isKnown = 0 ORDER BY srsScore ASC, nextReviewDate ASC LIMIT :limit")
     suspend fun getHardestWordsForReviewByUnit(track: String, unit: Int, limit: Int): List<Word>
 
-    /** Clears learning progress but keeps the vocabulary itself */
-    @Query("UPDATE words SET srsScore = 0, easeFactor = 2.5, interval = 1, nextReviewDate = 0, correctCount = 0, wrongCount = 0, isKnown = 0")
+    /**
+     * Clears learning progress but keeps the vocabulary itself. updatedAt = 0 (older than any
+     * real progress) so an account-delete reset can never win a last-write-wins cloud merge
+     * against progress recorded on another device.
+     */
+    @Query("UPDATE words SET srsScore = 0, easeFactor = 2.5, interval = 1, nextReviewDate = 0, correctCount = 0, wrongCount = 0, isKnown = 0, updatedAt = 0")
     suspend fun resetAllProgress()
+
+    // ─── Stable sync ids (Phase 3) ───────────────────────────────────────────
+    // Fresh installs get stableId directly from the bundled asset (see VocabDataLoader). An
+    // existing install upgrading to v5 has rows with stableId = NULL after the migration; this
+    // backfills them by matching the same (track, unit, word, definition) tuple the asset's
+    // generator hashed to produce each id, without touching srsScore/progress at all.
+    @Query(
+        "UPDATE words SET stableId = :stableId " +
+        "WHERE track = :track AND unit = :unit AND word = :word AND definition = :definition AND stableId IS NULL"
+    )
+    suspend fun backfillStableId(track: String, unit: Int, word: String, definition: String, stableId: String): Int
+
+    @Query("SELECT COUNT(*) FROM words WHERE stableId IS NULL")
+    suspend fun countMissingStableId(): Int
+
+    // ─── Cloud sync (Phase 3 S2) ─────────────────────────────────────────────
+    /** Every word that has a sync identity (a word without a stableId is never synced). */
+    @Query("SELECT * FROM words WHERE stableId IS NOT NULL")
+    suspend fun getSyncableWords(): List<Word>
+
+    @Update
+    suspend fun updateWords(words: List<Word>)
+
+    @Query("SELECT * FROM words WHERE stableId = :stableId LIMIT 1")
+    suspend fun getByStableId(stableId: String): Word?
 
     @Query("SELECT * FROM words WHERE track = :track AND isKnown = 0 ORDER BY nextReviewDate ASC LIMIT :limit")
     fun getUpcomingReviews(track: String, limit: Int): Flow<List<Word>>

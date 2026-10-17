@@ -5,6 +5,13 @@ plugins {
   alias(libs.plugins.ksp)
 }
 
+// google-services.json is gitignored (the owner's Firebase project config), so a checkout without
+// it must still build: the plugin is applied only when the file exists, and the sync code
+// (data/sync/FirebaseCloudSync) reports itself unavailable at runtime instead of crashing.
+if (file("google-services.json").exists()) {
+  apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.example.psychometricvocab"
     compileSdk = 36
@@ -14,6 +21,8 @@ android {
         targetSdk = 36
         versionCode = 8
         versionName = "1.1.6"
+        // Needed for the new instrumented MigrationTest (AndroidJUnit4); nothing used it before.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -38,10 +47,23 @@ android {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
       }
     }
+
+    // Room's exported schema JSONs (app/schemas/...) double as the androidTest
+    // MigrationTestHelper's input, so the migration test can validate a real migration's
+    // result against them.
+    sourceSets {
+        getByName("androidTest") {
+            assets.srcDirs("$projectDir/schemas")
+        }
+    }
 }
 
 kotlin {
     jvmToolchain(17)
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -89,6 +111,16 @@ dependencies {
   implementation(libs.room.runtime)
   implementation(libs.room.ktx)
   ksp(libs.room.compiler)
+  androidTestImplementation(libs.room.testing)
+
+  // Cloud sync (Phase 3, S2). Only data/sync/FirebaseCloudSync.kt imports these.
+  implementation(platform(libs.firebase.bom))
+  implementation(libs.firebase.auth)
+  implementation(libs.firebase.firestore)
+  implementation(libs.androidx.credentials)
+  implementation(libs.androidx.credentials.play.services)
+  implementation(libs.googleid)
+  implementation(libs.kotlinx.coroutines.play.services)
 
   // Gson
   implementation(libs.gson)

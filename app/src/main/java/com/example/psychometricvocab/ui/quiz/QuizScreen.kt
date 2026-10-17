@@ -120,10 +120,9 @@ fun QuizScreen(
                         LaunchedEffect(autoPassEnabled, currentQuestion.answered, currentIndex) {
                             if (autoPassEnabled && currentQuestion.answered) {
                                 delay(if (answeredWrong) 2500L else 1000L)
-                                val latest = vm.state.value
-                                if (latest.currentIndex == currentIndex && !latest.sessionComplete) {
-                                    vm.onNext()
-                                }
+                                // onNext(expectedIndex) is itself a no-op if the manual Next button
+                                // already moved on, so no separate re-check is needed here.
+                                vm.onNext(currentIndex)
                             }
                         }
 
@@ -316,7 +315,11 @@ fun QuizScreen(
                                     } else {
                                         if (isHebrew) "הבא ←" else "Next →"
                                     },
-                                    onClick = vm::onNext,
+                                    // `currentIndex` is this question's index, captured in this
+                                    // composition: while the button animates out after a tap it
+                                    // is still clickable, and a second tap then passes the OLD
+                                    // index, which onNext(expectedIndex) ignores.
+                                    onClick = { vm.onNext(currentIndex) },
                                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
                                 )
                             }
