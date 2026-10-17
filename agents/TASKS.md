@@ -24,6 +24,7 @@ Owned by the Manager. Format: `- [ ] task — owner — status`.
 - Not needed now (owner): the Learn tab's content, remembering the language, slow first launch, Hebrew update dialog.
 - [x] (owner: leave it for now) Should the "רק מילים שלא ידעתי" quiz pool use only missed words (wrongCount>0), matching its gate? Today it's all not-known words (QA finding)
 - [x] Release v1.1.5 — Manager — released 2026-09-25: GitHub release v1.1.5, master = 27fd377
-- [ ] **Phase 3 vocab sync** (`feature/vocab-sync`), approved 2026-10-16: S1 backup + Migration + stable ids; S2 sign-in + Firestore sync; IT tests on the owner's real data — Developer, then QA and IT
+- [x] **Phase 3 vocab sync**, released as v1.1.7 on 2026-10-17 (master dbeea80). Real-data upgrade 0 diffs; cloud restore 1981/1981; QA review skipped (owner's quota): S1 backup + Migration + stable ids; S2 sign-in + Firestore sync; IT tests on the owner's real data — Developer, then QA and IT
 - [x] Release v1.1.6 (export button) — Manager — released 2026-10-16, master = ded36f5
 - [x] S1 upgrade test on the owner's real export (from v1.1.6) — IT — PASS 2026-10-17: 6215/6215 rows, 0 progress diffs, 0 unmatched stableIds, 162/2045/439 kept, backup OK, MigrationTest OK
+- [ ] Remove the temporary "Export my data (test)" button (or rename it) in a later release — owner to decide
