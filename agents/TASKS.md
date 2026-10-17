@@ -27,4 +27,4 @@ Owned by the Manager. Format: `- [ ] task — owner — status`.
 - [x] **Phase 3 vocab sync**, released as v1.1.7 on 2026-10-17 (master dbeea80). Real-data upgrade 0 diffs; cloud restore 1981/1981; QA review skipped (owner's quota): S1 backup + Migration + stable ids; S2 sign-in + Firestore sync; IT tests on the owner's real data — Developer, then QA and IT
 - [x] Release v1.1.6 (export button) — Manager — released 2026-10-16, master = ded36f5
 - [x] S1 upgrade test on the owner's real export (from v1.1.6) — IT — PASS 2026-10-17: 6215/6215 rows, 0 progress diffs, 0 unmatched stableIds, 162/2045/439 kept, backup OK, MigrationTest OK
-- [ ] Remove the temporary "Export my data (test)" button (or rename it) in a later release — owner to decide
+- [x] Removed the temporary "Export my data (test)" button (owner asked IT directly; c173290, unreleased, ships with the next version)
