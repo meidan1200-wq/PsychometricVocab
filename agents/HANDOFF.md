@@ -3,6 +3,20 @@
 Use this when direct messaging isn't available. Format:
 `## YYYY-MM-DD HH:MM — FROM → TO` then a short message.
 
+## 2026-10-17 — Developer → Manager, IT (v1.1.7: sign-in no longer dead-ends; every failure says its real reason)
+Pushed `673771e` on `feature/vocab-sync`. `gradlew.bat assembleDebug testDebugUnitTest`: BUILD SUCCESSFUL; 11 new unit tests (`SignInErrorTest`) pass, all other suites still pass. **Not run on a device** (no emulator/account here).
+
+**What changed:** (1) If the first request (`GetGoogleIdOption`, already `setFilterByAuthorizedAccounts(false)` so first-time users see all accounts) throws `NoCredentialException`, `FirebaseCloudSync.signIn` retries with `GetSignInWithGoogleOption` (the explicit "Sign in with Google" flow, which can offer to add an account). (2) The old generic "ההתחברות נכשלה. נסה שוב" is gone. `classifySignInError(Throwable)` walks the cause chain and returns one of: **no account** → "אין חשבון Google במכשיר" / "No Google account on this device", shown in a dialog with an **Add account** button (`Settings.ACTION_ADD_ACCOUNT`, Google accounts only; falls back to general Settings); **cancelled** → nothing shown (not an error); **no network** → "אין חיבור לאינטרנט" / "No internet connection"; **config** (Play services status code 10 / `DEVELOPER_ERROR`) → "שגיאת הגדרה (קוד 10)" / "Configuration error (code 10)"; **anything else** → "ההתחברות נכשלה (<exception type>[, code N])" / "Sign-in failed (<type>[, code N])" so a screenshot is enough to diagnose. (3) The text mapping is the pure `SignInMessages.text(failure, isHebrew)`; one unit test per case for both the classification and the texts.
+
+**Test steps for IT:**
+1. **Account present (owner's emulator, his account already added):** Profile → "Cloud backup" → "התחבר עם Google": the account sheet appears, pick the account, row shows the email + "התנתק". Normal sign-in, no error.
+2. **Cancel:** open the picker and back out/dismiss: no toast, no dialog, row still signed-out.
+3. **No account:** use a **second, clean AVD with no Google account** (never remove the owner's account from his emulator). Tap sign-in: you should first see the explicit Google sign-in sheet (the fallback); if the device still offers nothing, the dialog "אין חשבון Google במכשיר" with **הוסף חשבון** appears; the button opens the add-account screen. Also check the English text (switch the app language).
+4. **No network:** airplane mode, tap sign-in: "אין חיבור לאינטרנט" (if the OS surfaces something else, the OTHER message with the exception type shows instead; send me the screenshot and I'll map it).
+5. Config problem (code 10) can't be forced on a good setup; covered by the unit test only. If it ever appears for real, the message is "שגיאת הגדרה (קוד 10)" and means the SHA-1/client id doesn't match the signing key.
+
+**Not checked:** everything on a device. In particular which exception the OS actually throws for the offline case and for a device with no account is inferred from the library's documented types and the owner's logcat (`NoCredentialException`), not observed; the classifier also matches "network" in the message and any `IOException` in the chain for the offline case.
+
 ## 2026-10-17 — Developer → Manager, IT (v1.1.7 work on `feature/vocab-sync`: merge, 2 bug fixes, S2 sync)
 Branch head `6e808f3`. `gradlew.bat assembleDebug testDebugUnitTest compileDebugAndroidTestKotlin`: BUILD SUCCESSFUL; unit tests pass (SyncMergeTest 10, QuizAdvanceTest 4, SubScreenCodecTest 4, SrsEngineTest 8). Also built with `app/google-services.json` temporarily removed: it still builds (plugin applied only if the file exists; sync then reports "not available"). **Nothing here was run on a device or emulator** (none in this session), and sign-in needs a Google account on the device, so all of S2's runtime behavior is unverified until IT runs it. versionCode untouched (merge took 8 / 1.1.6 from the working branch).
 
