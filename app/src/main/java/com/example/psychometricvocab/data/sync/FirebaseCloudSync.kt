@@ -5,13 +5,16 @@ import android.content.Context
 import android.util.Log
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
+import androidx.credentials.CredentialOption
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
-import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.DocumentSnapshot
@@ -56,31 +59,47 @@ class FirebaseCloudSync private constructor(private val appContext: Context) : C
         // Generated into resources by the google-services plugin from google-services.json.
         val resId = appContext.resources.getIdentifier("default_web_client_id", "string", appContext.packageName)
         if (resId == 0) return SignInResult.Unavailable
+        val webClientId = appContext.getString(resId)
         return try {
-            val option = GetGoogleIdOption.Builder()
-                .setFilterByAuthorizedAccounts(false)
-                .setServerClientId(appContext.getString(resId))
-                .build()
-            val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
-            val credential = CredentialManager.create(activity).getCredential(activity, request).credential
-            if (credential !is CustomCredential ||
-                credential.type != GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
-            ) {
-                return SignInResult.Failed("Unexpected credential type")
+            val idToken = try {
+                // First choice: the accounts-on-device sheet. filterByAuthorizedAccounts = false so a
+                // first-time user sees ALL their accounts, not only ones already used with the app.
+                requestIdToken(
+                    activity,
+                    GetGoogleIdOption.Builder()
+                        .setFilterByAuthorizedAccounts(false)
+                        .setServerClientId(webClientId)
+                        .build()
+                )
+            } catch (e: NoCredentialException) {
+                // Nothing usable offered (e.g. no account on the device yet). Fall back to the
+                // explicit "Sign in with Google" flow, which can also offer to add an account.
+                Log.i(TAG, "No credential from GetGoogleIdOption; trying GetSignInWithGoogleOption")
+                requestIdToken(activity, GetSignInWithGoogleOption.Builder(webClientId).build())
             }
-            val idToken = GoogleIdTokenCredential.createFrom(credential.data).idToken
             val result = auth.signInWithCredential(GoogleAuthProvider.getCredential(idToken, null)).await()
-            val u = result.user ?: return SignInResult.Failed("No user returned")
+            val u = result.user ?: return SignInResult.Failed(SignInFailure(SignInProblem.OTHER, "no user returned"))
             SignInResult.Success(u.toSyncUser())
-        } catch (e: GetCredentialCancellationException) {
-            SignInResult.Cancelled
-        } catch (e: GetCredentialException) {
-            Log.w(TAG, "Credential Manager sign-in failed", e)
-            SignInResult.Failed(e.message)
         } catch (e: Exception) {
-            Log.w(TAG, "Firebase sign-in failed", e)
-            SignInResult.Failed(e.message)
+            val failure = classifySignInError(e)
+            if (failure.problem == SignInProblem.CANCELLED) {
+                SignInResult.Cancelled
+            } else {
+                Log.w(TAG, "Sign-in failed: $failure", e)
+                SignInResult.Failed(failure)
+            }
         }
+    }
+
+    private suspend fun requestIdToken(activity: Activity, option: CredentialOption): String {
+        val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
+        val credential = CredentialManager.create(activity).getCredential(activity, request).credential
+        if (credential !is CustomCredential ||
+            credential.type != GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+        ) {
+            throw IllegalStateException("unexpected credential type: ${credential.type}")
+        }
+        return GoogleIdTokenCredential.createFrom(credential.data).idToken
     }
 
     override suspend fun signOut() {
@@ -182,5 +201,47 @@ class FirebaseCloudSync private constructor(private val appContext: Context) : C
                 UnavailableCloudSync
             }
         }
+    }
+}
+
+/**
+ * Maps whatever a sign-in threw to ONE specific [SignInFailure] (never a generic "failed"):
+ * looks through the whole cause chain, because Credential Manager wraps the Play-services and
+ * network errors it hits. Top-level and free of side effects so each case is unit-tested.
+ */
+internal fun classifySignInError(error: Throwable): SignInFailure {
+    val chain = generateSequence(error) { it.cause }.take(8).toList()
+
+    if (chain.any { it is GetCredentialCancellationException }) return SignInFailure(SignInProblem.CANCELLED)
+    if (chain.any { it is NoCredentialException }) return SignInFailure(SignInProblem.NO_ACCOUNT)
+
+    // Config: Play services' DEVELOPER_ERROR is status code 10 (wrong SHA-1 / client id / package).
+    chain.firstNotNullOfOrNull { statusCodeOf(it) }?.let { code ->
+        if (code == 10) return SignInFailure(SignInProblem.CONFIG, "10")
+    }
+    if (chain.any { it.message?.contains("DEVELOPER_ERROR", ignoreCase = true) == true }) {
+        return SignInFailure(SignInProblem.CONFIG, "10")
+    }
+
+    val offline = chain.any {
+        it is FirebaseNetworkException || it is java.io.IOException ||
+            it.message?.contains("network", ignoreCase = true) == true ||
+            it.message?.contains("unable to resolve host", ignoreCase = true) == true
+    }
+    if (offline) return SignInFailure(SignInProblem.NO_NETWORK)
+
+    // Anything else: the type, plus the numeric code when there is one, so a screenshot diagnoses it.
+    val code = chain.firstNotNullOfOrNull { statusCodeOf(it) }
+    val type = error::class.java.simpleName.ifEmpty { error::class.java.name }
+    return SignInFailure(SignInProblem.OTHER, if (code != null) "$type, code $code" else type)
+}
+
+/** Play services' ApiException exposes getStatusCode(); read it without depending on that class. */
+private fun statusCodeOf(t: Throwable): Int? {
+    if (!t::class.java.name.endsWith("ApiException")) return null
+    return try {
+        t::class.java.getMethod("getStatusCode").apply { isAccessible = true }.invoke(t) as? Int
+    } catch (e: Exception) {
+        null
     }
 }

@@ -3,6 +3,8 @@ package com.example.psychometricvocab.ui.settings
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
+import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.psychometricvocab.LocalAppState
+import com.example.psychometricvocab.data.sync.SignInMessages
 import com.example.psychometricvocab.data.sync.SyncViewModel
 import com.example.psychometricvocab.theme.*
 
@@ -32,17 +35,38 @@ fun CloudBackupRow(modifier: Modifier = Modifier, vm: SyncViewModel = viewModel(
     val context = LocalContext.current
     val user by vm.user.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
-    val error by vm.error.collectAsStateWithLifecycle()
+    val failure by vm.failure.collectAsStateWithLifecycle()
 
-    LaunchedEffect(error) {
-        if (error != null) {
-            Toast.makeText(
-                context,
-                if (isHebrew) "ההתחברות נכשלה. נסה שוב" else "Sign-in failed. Please try again",
-                Toast.LENGTH_LONG
-            ).show()
-            vm.consumeError()
+    // Each failure shows its own real reason (see SignInMessages); a cancel shows nothing.
+    // "No Google account" gets a dialog with a button that opens the system add-account screen.
+    var addAccountPrompt by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(failure) {
+        val f = failure ?: return@LaunchedEffect
+        val text = SignInMessages.text(f, isHebrew)
+        if (text != null) {
+            if (SignInMessages.offersAddAccount(f)) addAccountPrompt = text
+            else Toast.makeText(context, text, Toast.LENGTH_LONG).show()
         }
+        vm.consumeFailure()
+    }
+    addAccountPrompt?.let { message ->
+        AlertDialog(
+            onDismissRequest = { addAccountPrompt = null },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = {
+                    addAccountPrompt = null
+                    openAddAccount(context)
+                }) {
+                    Text(if (isHebrew) "הוסף חשבון" else "Add account", color = YellowDark, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { addAccountPrompt = null }) {
+                    Text(if (isHebrew) "סגור" else "Close", color = TextSecondary)
+                }
+            }
+        )
     }
 
     Card(
@@ -103,4 +127,20 @@ private fun Context.findActivity(): Activity? {
         c = c.baseContext
     }
     return null
+}
+
+/** Opens the system "add account" screen, limited to Google accounts. */
+private fun openAddAccount(context: Context) {
+    val intent = Intent(Settings.ACTION_ADD_ACCOUNT)
+        .putExtra(Settings.EXTRA_ACCOUNT_TYPES, arrayOf("com.google"))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    try {
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        // No add-account screen on this device: fall back to the general Settings app.
+        try {
+            context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (_: Exception) {
+        }
+    }
 }

@@ -19,9 +19,9 @@ class SyncViewModel(app: Application) : AndroidViewModel(app) {
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
-    /** One-shot message for the UI to show (and then clear): null, "cancelled" is silent. */
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
+    /** The reason the last sign-in failed (null = none to show). A cancel is never reported. */
+    private val _failure = MutableStateFlow<SignInFailure?>(null)
+    val failure: StateFlow<SignInFailure?> = _failure.asStateFlow()
 
     fun signIn(activity: Activity) {
         if (_busy.value) return
@@ -31,8 +31,9 @@ class SyncViewModel(app: Application) : AndroidViewModel(app) {
             _busy.value = false
             when (result) {
                 is SignInResult.Success, SignInResult.Cancelled -> Unit
-                SignInResult.Unavailable -> _error.value = "unavailable"
-                is SignInResult.Failed -> _error.value = result.message ?: "failed"
+                SignInResult.Unavailable ->
+                    _failure.value = SignInFailure(SignInProblem.OTHER, "no Firebase config")
+                is SignInResult.Failed -> _failure.value = result.failure
             }
         }
     }
@@ -41,7 +42,7 @@ class SyncViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { coordinator.signOut() }
     }
 
-    fun consumeError() {
-        _error.value = null
+    fun consumeFailure() {
+        _failure.value = null
     }
 }

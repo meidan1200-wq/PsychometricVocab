@@ -10,7 +10,7 @@ sealed interface SignInResult {
     data class Success(val user: SyncUser) : SignInResult
     object Cancelled : SignInResult
     object Unavailable : SignInResult
-    data class Failed(val message: String?) : SignInResult
+    data class Failed(val failure: SignInFailure) : SignInResult
 }
 
 /**
