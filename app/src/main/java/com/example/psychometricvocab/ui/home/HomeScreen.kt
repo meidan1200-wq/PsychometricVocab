@@ -143,7 +143,7 @@ fun HomeScreen(
                             StatColumn(
                                 icon = Icons.Filled.Refresh,
                                 value = state.upcomingReviews.toString(),
-                                label = if (isHebrew) "לחזרה" else "To review",
+                                label = if (isHebrew) "תרגול" else "Practice",
                                 color = WrongRed,
                                 modifier = Modifier.weight(1f),
                                 onClick = onGoToReview

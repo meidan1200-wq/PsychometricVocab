@@ -32,6 +32,33 @@ class ActivityLog(context: Context) {
         }
     }
 
+    /** Every stored day as ISO date ("2026-10-24") -> answers that day (the last ~30 days). */
+    fun getAllCounts(): Map<String, Int> {
+        val out = HashMap<String, Int>()
+        for ((key, value) in prefs.all) {
+            val count = value as? Int ?: continue
+            if (runCatching { LocalDate.parse(key, FORMATTER) }.isSuccess) out[key] = count
+        }
+        return out
+    }
+
+    /**
+     * Raises each given day to AT LEAST the given count (never lowers one): the merge rule for
+     * activity counts coming back from the cloud, where history only ever grows.
+     */
+    fun raiseTo(counts: Map<String, Int>) {
+        if (counts.isEmpty()) return
+        val editor = prefs.edit()
+        var changed = false
+        for ((day, count) in counts) {
+            if (runCatching { LocalDate.parse(day, FORMATTER) }.isFailure) continue
+            if (count > prefs.getInt(day, 0)) { editor.putInt(day, count); changed = true }
+        }
+        if (changed) editor.apply()
+    }
+
+    fun todayIso(): String = todayKey()
+
     fun clear() {
         prefs.edit().clear().apply()
     }

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.psychometricvocab.data.ActivityLog
 import com.example.psychometricvocab.data.sync.SyncCoordinator
 import com.example.psychometricvocab.data.QuizPreferences
+import com.example.psychometricvocab.data.PracticeSession
 import com.example.psychometricvocab.data.SessionSelector
 import com.example.psychometricvocab.data.VocabDatabase
 import com.example.psychometricvocab.data.VocabRepository
@@ -84,6 +85,7 @@ class QuizViewModel(app: Application) : AndroidViewModel(app) {
         SyncCoordinator.get(app)::onWordChanged
     )
     private val quizPrefs = QuizPreferences(app)
+    private val activityLog = ActivityLog(app)
 
     private val _state = MutableStateFlow(QuizUiState())
     val state: StateFlow<QuizUiState> = _state.asStateFlow()
@@ -134,9 +136,14 @@ class QuizViewModel(app: Application) : AndroidViewModel(app) {
             }
             val allWords = repo.getWordsForSession(track, if (isReviewMode) null else unit).first()
             val sessionWords = if (isReviewMode) {
-                // Fixed length regardless of the Quiz Settings length slider: the red review
-                // card always drills the same-size, hand-picked set of hardest words.
-                repo.getHardestWordsForReview(track, REVIEW_WORD_COUNT)
+                // Personal PRACTICE (the Home "Practice" column): the whole track, due words
+                // favoured (multiplier 3), and a session size that adapts to how much the user
+                // actually practises per day, not the Quiz Settings length.
+                val size = PracticeSession.size(PracticeSession.recentActiveCounts(activityLog.getAllCounts()))
+                SessionSelector.select(
+                    allWords, size, System.currentTimeMillis(), Random.Default,
+                    SessionSelector.DUE_MULTIPLIER_PRACTICE
+                )
             } else {
                 val pool = if (effectiveUnknownOnly) allWords.filter { !it.isKnown } else allWords
                 // Learning v2: recently practised / often-missed words come back with high
@@ -205,7 +212,4 @@ class QuizViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.advanceFrom(expectedIndex) }
     }
 
-    companion object {
-        private const val REVIEW_WORD_COUNT = 10
-    }
 }
