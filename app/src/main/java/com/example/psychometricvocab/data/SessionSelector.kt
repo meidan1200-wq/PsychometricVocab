@@ -21,13 +21,35 @@ import kotlin.random.Random
  *   a      = (correct + 1) / (correct + wrong + 2)            accuracy, smoothed
  *   m      = a, raised to at least 0.85 if isKnown            mastery
  *   recent = exp(-hoursSince(updatedAt) / 48)                 0 if updatedAt == 0
- *   weight = (0.1 + (1 - m)) * (1 + 3 * recent * (1 - m)) * (dueMultiplier if due else 1)
+ *   weight = (0.1 + (1 - m)) * (1 + 6 * recent * (1 - m)) * (dueMultiplier if due else 1)
  * A word is "due" if it has been practised and nextReviewDate <= now.
  * Sampling is weighted, without replacement (Efraimidis-Spirakis: key = u^(1/w), top N).
+ *
+ * The weights alone were too weak for the owner's real data: a unit can already hold ~80
+ * wrong-not-yet-known words, and a recency factor of at most 2.5x can't make the words from the
+ * quiz he just did win a draw against 80 of those (3 consecutive quizzes overlapped 0-2 words).
+ * So a session is built in three steps:
+ *   1. CARRY-OVER: up to 50% of the session is reserved for words practised in the last 48 h
+ *      that are not yet mastered (m < 0.9 and not known), drawn by weight (1 - m) * recent, so
+ *      the most recent and least mastered come first. A word leaves carry-over by itself once
+ *      its accuracy reaches 0.9 or it becomes known, so the chance of seeing it falls as the
+ *      user answers it correctly.
+ *   2. Then at most 30% brand-new words.
+ *   3. Then the rest from the remaining practised words by the weights above.
  */
 object SessionSelector {
     /** At most this share of a session may be brand-new words (rounded up). */
     const val NEW_WORD_FRACTION = 0.30
+
+    /** Up to this share of a session is reserved for carry-over words (rounded up). */
+    const val CARRY_OVER_FRACTION = 0.50
+
+    /** A word stops being carry-over once its mastery reaches this (or it becomes known). */
+    const val CARRY_OVER_MASTERY_LIMIT = 0.9
+    private const val CARRY_OVER_WINDOW_HOURS = 48.0
+
+    /** How strongly recency lifts the weight of a not-yet-mastered word. */
+    private const val RECENCY_BOOST = 6.0
     private const val RECENCY_HALF_SCALE_HOURS = 48.0
     private const val MS_PER_HOUR = 3_600_000.0
 
@@ -52,12 +74,17 @@ object SessionSelector {
 
     fun isDue(w: Word, now: Long): Boolean = !isNew(w) && w.nextReviewDate <= now
 
+    /** Practised in the last 48 h and not yet mastered (m < 0.9, not known): the words to keep bringing back. */
+    fun isCarryOver(w: Word, now: Long): Boolean =
+        !isNew(w) && !w.isKnown && mastery(w) < CARRY_OVER_MASTERY_LIMIT && w.updatedAt > 0L &&
+            (now - w.updatedAt) / MS_PER_HOUR <= CARRY_OVER_WINDOW_HOURS
+
     /** The sampling weight of a PRACTISED word (always > 0). */
     fun weight(w: Word, now: Long, dueMultiplier: Double = DUE_MULTIPLIER_QUIZ): Double {
         val m = mastery(w)
         val recent = recency(w, now)
         val due = if (isDue(w, now)) dueMultiplier else 1.0
-        return (0.1 + (1.0 - m)) * (1.0 + 3.0 * recent * (1.0 - m)) * due
+        return (0.1 + (1.0 - m)) * (1.0 + RECENCY_BOOST * recent * (1.0 - m)) * due
     }
 
     fun select(
@@ -74,28 +101,35 @@ object SessionSelector {
         val fresh = words.filter { isNew(it) }
         val practised = words.filter { !isNew(it) }
 
-        val maxNew = ceil(count * NEW_WORD_FRACTION).toInt()
-        var newQuota = min(maxNew, fresh.size)
-        val practisedQuota = min(practised.size, count - newQuota)
-        // Not enough practised words to fill the rest: top up with more new ones.
-        newQuota = min(fresh.size, count - practisedQuota)
+        // 1. carry-over quota, by weight (1 - m) * recent (both > 0 for a candidate)
+        val carryCandidates = practised.filter { isCarryOver(it, now) }
+        val carryQuota = min(ceil(count * CARRY_OVER_FRACTION).toInt(), carryCandidates.size)
+        val carry = sampleBy(carryCandidates, carryQuota, random) { (1.0 - mastery(it)) * recency(it, now) }
+        val carryIds = carry.map { it.id }.toHashSet()
 
-        val chosen = sampleWeighted(practised, practisedQuota, now, random, dueMultiplier) +
-            pickNewInOrder(fresh, newQuota, random)
-        // Shuffle so the new words aren't always the last questions.
+        // 2. at most 30% brand-new words; 3. the rest from the remaining practised words
+        val remaining = count - carry.size
+        val maxNew = ceil(count * NEW_WORD_FRACTION).toInt()
+        var newQuota = min(min(maxNew, fresh.size), remaining)
+        val restPool = practised.filter { it.id !in carryIds }
+        val restQuota = min(restPool.size, remaining - newQuota)
+        // Not enough practised words to fill the rest: top up with more new ones.
+        newQuota = min(fresh.size, remaining - restQuota)
+
+        val rest = sampleBy(restPool, restQuota, random) { weight(it, now, dueMultiplier) }
+        val chosen = carry + rest + pickNewInOrder(fresh, newQuota, random)
+        // Shuffle so the new words and the carry-over aren't in a fixed order.
         return chosen.shuffled(random)
     }
 
     /** Weighted sampling without replacement (Efraimidis-Spirakis), top [n] keys. */
-    private fun sampleWeighted(
-        pool: List<Word>, n: Int, now: Long, random: Random, dueMultiplier: Double
-    ): List<Word> {
+    private fun sampleBy(pool: List<Word>, n: Int, random: Random, weightOf: (Word) -> Double): List<Word> {
         if (n <= 0) return emptyList()
         return pool
             .map { w ->
                 // key = u^(1/weight); ln(u)/weight orders identically and doesn't underflow.
                 val u = max(random.nextDouble(), 1e-12)
-                w to ln(u) / weight(w, now, dueMultiplier)
+                w to ln(u) / weightOf(w)
             }
             .sortedByDescending { it.second }
             .take(n)
