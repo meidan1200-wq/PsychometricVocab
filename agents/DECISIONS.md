@@ -5,6 +5,13 @@ Important decisions, newest on top. Format: `## YYYY-MM-DD — decision` then wh
 ## 2026-09-24 — The Manager does the final merge and every version
 QA no longer pushes to the working branch. It pushes to the feature branch it's reviewing, or to `qa/<topic>`. The Developer pushes to `feature/<name>`. The Manager gives the final verdict, merges into `claude/charming-planck-v3dszd`, and creates every version and release (releases need the owner's approval). Decided by the owner.
 
+## 2026-10-24 — v1.1.8: learning algorithm, Practice, "another round", skip fix (owner, directly)
+- Word selection: recently practiced, not-yet-mastered words come back with high probability, decreasing as accuracy rises (weight from Laplace accuracy, 48h recency decay, due boost); at most 30% new words per session, introduced in unit order. No schema change (uses updatedAt/counts). The design is the Manager's, per the owner ("your choice").
+- "לחזרה" becomes "תרגול": a personal practice over all units, sized by the user's habit (median daily answers over 7 active days × 0.6, clamped 15–40; default 15).
+- The activity log syncs to Firebase (per day, max-merge).
+- The results screen gets "עוד סיבוב" instead of "חזור לתפריט".
+- Bug: with auto pass ON, the "הבא" button is hidden (the owner's suggestion); the v1.1.7 fix didn't hold (a 15-question quiz ended with 14 answered).
+
 ## 2026-10-16 — The export build ships as v1.1.6 through OTA
 Owner request (via the MAFAM manager): deliver the export build as a normal update rather than a sideload. v1.1.6 (versionCode 8) = v1.1.5 + the read-only "Export my data (test)" button; no schema change, same key. S1/S2 become v1.1.7+, and their upgrade test starts from v1.1.6. This supersedes "the next real release is versionCode 8" below.
 

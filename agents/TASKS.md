@@ -28,3 +28,4 @@ Owned by the Manager. Format: `- [ ] task — owner — status`.
 - [x] Release v1.1.6 (export button) — Manager — released 2026-10-16, master = ded36f5
 - [x] S1 upgrade test on the owner's real export (from v1.1.6) — IT — PASS 2026-10-17: 6215/6215 rows, 0 progress diffs, 0 unmatched stableIds, 162/2045/439 kept, backup OK, MigrationTest OK
 - [x] Removed the temporary "Export my data (test)" button (owner asked IT directly; c173290, unreleased, ships with the next version)
+- [ ] **v1.1.8** `feature/learning-v2`: weighted selection, Practice, activity-log sync, another round, auto-pass skip fix — Developer
