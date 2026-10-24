@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.psychometricvocab.data.ActivityLog
 import com.example.psychometricvocab.data.sync.SyncCoordinator
 import com.example.psychometricvocab.data.QuizPreferences
-import com.example.psychometricvocab.data.SrsEngine
+import com.example.psychometricvocab.data.SessionSelector
 import com.example.psychometricvocab.data.VocabDatabase
 import com.example.psychometricvocab.data.VocabRepository
 import com.example.psychometricvocab.data.Word
@@ -114,7 +114,9 @@ class QuizViewModel(app: Application) : AndroidViewModel(app) {
                 repo.getHardestWordsForReview(track, REVIEW_WORD_COUNT)
             } else {
                 val pool = if (effectiveUnknownOnly) allWords.filter { !it.isKnown } else allWords
-                SrsEngine.selectWordsForSession(pool.ifEmpty { allWords }, length)
+                // Learning v2: recently practised / often-missed words come back with high
+                // probability, brand-new ones are capped at 30% (see SessionSelector).
+                SessionSelector.select(pool.ifEmpty { allWords }, length, System.currentTimeMillis(), Random.Default)
             }
             val questions = withContext(Dispatchers.Default) {
                 sessionWords.map { word -> buildQuestion(word, allWords, track) }
