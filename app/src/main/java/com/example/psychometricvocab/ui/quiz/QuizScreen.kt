@@ -252,7 +252,7 @@ fun QuizScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clickable(enabled = !isAnswered) {
-                                                vm.onAnswer(quizOpt.wordId, quizOpt.isCorrect)
+                                                vm.onAnswer(currentIndex, quizOpt.wordId, quizOpt.isCorrect)
                                             }
                                     ) {
                                         CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Rtl) {
@@ -302,9 +302,11 @@ fun QuizScreen(
                                 Spacer(Modifier.height(24.dp))
                             }
 
-                            // Next / Finish button
+                            // Next / Finish button. With Auto pass ON it is not shown at all: the timer
+                            // is the only way forward (a tap on the sliding-out button was how a
+                            // question got skipped). With Auto pass OFF it is the only way.
                             AnimatedVisibility(
-                                visible = currentQuestion.answered,
+                                visible = currentQuestion.answered && !autoPassEnabled,
                                 enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
                                 exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
                             ) {
@@ -315,10 +317,10 @@ fun QuizScreen(
                                     } else {
                                         if (isHebrew) "הבא ←" else "Next →"
                                     },
-                                    // `currentIndex` is this question's index, captured in this
-                                    // composition: while the button animates out after a tap it
-                                    // is still clickable, and a second tap then passes the OLD
-                                    // index, which onNext(expectedIndex) ignores.
+                                    // While this button slides out after a tap it is still
+                                    // clickable, and AnimatedVisibility recomposes it with the NEW
+                                    // question's index. That is safe only because onNext refuses to
+                                    // advance a question that has not been answered.
                                     onClick = { vm.onNext(currentIndex) },
                                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
                                 )
