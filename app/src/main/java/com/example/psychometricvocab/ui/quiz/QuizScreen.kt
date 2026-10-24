@@ -96,7 +96,11 @@ fun QuizScreen(
                         wrong = state.wrongCount,
                         total = state.total,
                         isHebrew = isHebrew,
-                        onBack = onBack
+                        // Same kind of session again (same unit/type/length, or Practice), with a
+                        // fresh selection. Going home is the bottom bar's job now.
+                        onAnotherRound = {
+                            vm.resetQuiz(appState.track, unit, unknownOnly, isReviewMode, useSavedPreference)
+                        }
                     )
                 }
                 else -> {
@@ -340,7 +344,7 @@ private fun QuizResultScreen(
     wrong: Int,
     total: Int,
     isHebrew: Boolean,
-    onBack: () -> Unit
+    onAnotherRound: () -> Unit
 ) {
     val pct = if (total > 0) (correct * 100 / total) else 0
     val emoji = when {
@@ -412,9 +416,9 @@ private fun QuizResultScreen(
         }
         Spacer(Modifier.height(32.dp))
         YellowButton(
-            text = if (isHebrew) "חזור לתפריט" else "Back to Menu",
-            onClick = onBack,
-            modifier = Modifier.fillMaxWidth()
+            text = if (isHebrew) "עוד סיבוב" else "Another round",
+            onClick = onAnotherRound,
+            modifier = Modifier.fillMaxWidth(0.8f)
         )
     }
 }
