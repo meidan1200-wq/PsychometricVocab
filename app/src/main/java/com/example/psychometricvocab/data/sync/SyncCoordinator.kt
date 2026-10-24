@@ -3,6 +3,7 @@ package com.example.psychometricvocab.data.sync
 import android.app.Activity
 import android.content.Context
 import android.util.Log
+import com.example.psychometricvocab.data.ActivityLog
 import com.example.psychometricvocab.data.VocabDatabase
 import com.example.psychometricvocab.data.WordDao
 import kotlinx.coroutines.CoroutineScope
@@ -31,6 +32,7 @@ class SyncCoordinator private constructor(context: Context) {
     val cloud: CloudSync = FirebaseCloudSync.createOrUnavailable(appContext)
 
     private val dao: WordDao get() = VocabDatabase.getInstance(appContext).wordDao()
+    private val activityLog = ActivityLog(appContext)
     private val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val passLock = Mutex()
@@ -72,6 +74,9 @@ class SyncCoordinator private constructor(context: Context) {
         }
         try {
             cloud.push(records)
+            // Today's answer count rides along (recordAnswer already ran for this answer).
+            val today = activityLog.todayIso()
+            activityLog.getAllCounts()[today]?.takeIf { it > 0 }?.let { cloud.pushActivity(mapOf(today to it)) }
         } catch (e: Exception) {
             Log.w(TAG, "push failed; will be reconciled on the next pass", e)
         }
@@ -83,11 +88,17 @@ class SyncCoordinator private constructor(context: Context) {
             // Couldn't reach the server: do nothing at all (see CloudSync.pull).
             val remote = cloud.pull() ?: return@withLock
             val first = !prefs.getBoolean(firstKey(user.uid), false)
-            val plan = SyncMerge.reconcile(dao.getSyncableWords(), remote, first, System.currentTimeMillis())
+            val plan = SyncMerge.reconcile(dao.getSyncableWords(), remote.words, first, System.currentTimeMillis())
             if (plan.localUpdates.isNotEmpty()) dao.updateWords(plan.localUpdates)
             if (plan.uploads.isNotEmpty()) cloud.push(plan.uploads)
+
+            // Daily activity (it drives Practice's session size): merge by max per day, so counts
+            // never go down on either side; only days with answers are uploaded.
+            val activity = ActivityMerge.reconcile(activityLog.getAllCounts(), remote.activity)
+            activityLog.raiseTo(activity.raiseLocal)
+            if (activity.uploads.isNotEmpty()) cloud.pushActivity(activity.uploads)
             if (first) prefs.edit().putBoolean(firstKey(user.uid), true).apply()
-            Log.i(TAG, "sync pass: first=$first, ${plan.localUpdates.size} local row(s) updated from the cloud, ${plan.uploads.size} uploaded")
+            Log.i(TAG, "sync pass: first=$first, ${plan.localUpdates.size} local row(s) updated from the cloud, ${plan.uploads.size} uploaded; activity: ${activity.raiseLocal.size} day(s) raised locally, ${activity.uploads.size} uploaded")
         } catch (e: Exception) {
             Log.w(TAG, "sync pass failed; local data untouched beyond what was already applied", e)
         }

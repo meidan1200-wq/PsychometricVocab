@@ -50,8 +50,11 @@ class ActivityLog(context: Context) {
         if (counts.isEmpty()) return
         val editor = prefs.edit()
         var changed = false
+        val cutoff = LocalDate.now().minusDays(RETAIN_DAYS)
         for ((day, count) in counts) {
-            if (runCatching { LocalDate.parse(day, FORMATTER) }.isFailure) continue
+            val date = runCatching { LocalDate.parse(day, FORMATTER) }.getOrNull() ?: continue
+            // Days older than the retention window would just be pruned again on the next answer.
+            if (date.isBefore(cutoff)) continue
             if (count > prefs.getInt(day, 0)) { editor.putInt(day, count); changed = true }
         }
         if (changed) editor.apply()

@@ -3,6 +3,9 @@ package com.example.psychometricvocab.data.sync
 import android.app.Activity
 import kotlinx.coroutines.flow.StateFlow
 
+/** Everything this app has in the cloud: per-word progress plus the per-day activity counts. */
+data class RemoteProgress(val words: List<SyncRecord>, val activity: Map<String, Int>)
+
 /** The signed-in cloud account (display only). */
 data class SyncUser(val uid: String, val email: String?)
 
@@ -41,7 +44,10 @@ interface CloudSync {
      * reached (offline, not signed in, error) — NOT an empty list: "couldn't look" must never be
      * mistaken for "the cloud has nothing", or a sync pass would upload over newer remote data.
      */
-    suspend fun pull(): List<SyncRecord>?
+    suspend fun pull(): RemoteProgress?
+
+    /** Queue these per-day activity counts (ISO date -> answers) for upload. Never deletes. */
+    suspend fun pushActivity(counts: Map<String, Int>)
 
     /** Live updates for this app's remote records. Returns a function that stops listening. */
     fun onChange(callback: (List<SyncRecord>) -> Unit): () -> Unit
@@ -55,6 +61,7 @@ object UnavailableCloudSync : CloudSync {
     override suspend fun signIn(activity: Activity): SignInResult = SignInResult.Unavailable
     override suspend fun signOut() {}
     override suspend fun push(records: List<SyncRecord>) {}
-    override suspend fun pull(): List<SyncRecord>? = null
+    override suspend fun pull(): RemoteProgress? = null
+    override suspend fun pushActivity(counts: Map<String, Int>) {}
     override fun onChange(callback: (List<SyncRecord>) -> Unit): () -> Unit = {}
 }
