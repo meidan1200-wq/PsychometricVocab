@@ -36,6 +36,11 @@
 - Your own chat reply in your session is a single **"."**. Work silently, with no narration between tool calls.
 - Exception: when the owner writes to you directly in your session, answer him normally.
 
+## Briefing IT (it may run on Haiku)
+- Give exact inputs, exact steps and expected values (numbers), and say which emulator (`-s emulator-5554`).
+- Treat its "pass" as evidence to check, not a verdict. A weaker model has reported "pass" on the wrong input before (MAFAM's experience). Sanity-check its numbers before anything reaches the owner.
+- One-off scripted checks can also run as a subagent instead of waking the IT session.
+
 ## Rules
 - You have the final word between agents; the owner outranks you. Settle disagreements quickly.
 - Stage files by name; never `git add -A` (agents share the PC).

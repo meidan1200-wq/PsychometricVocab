@@ -5,6 +5,9 @@ Important decisions, newest on top. Format: `## YYYY-MM-DD — decision` then wh
 ## 2026-09-24 — The Manager does the final merge and every version
 QA no longer pushes to the working branch. It pushes to the feature branch it's reviewing, or to `qa/<topic>`. The Developer pushes to `feature/<name>`. The Manager gives the final verdict, merges into `claude/charming-planck-v3dszd`, and creates every version and release (releases need the owner's approval). Decided by the owner.
 
+## 2026-10-25 — Token discipline (owner's request; learned from the MAFAM team)
+The silence and "." rules go at the top of every role file, including "even at wrap-up". Reports run about 5 lines. IT keeps reusable test scripts and a STATE.md outside the repo, cites screenshots by path, and compacts at ~75%. IT may move to Haiku (owner's call) with exact scripted briefs; the Manager checks its conclusions.
+
 ## 2026-10-24 — v1.1.8: learning algorithm, Practice, "another round", skip fix (owner, directly)
 - Word selection: recently practiced, not-yet-mastered words come back with high probability, decreasing as accuracy rises (weight from Laplace accuracy, 48h recency decay, due boost); at most 30% new words per session, introduced in unit order. No schema change (uses updatedAt/counts). The design is the Manager's, per the owner ("your choice").
 - "לחזרה" becomes "תרגול": a personal practice over all units, sized by the user's habit (median daily answers over 7 active days × 0.6, clamped 15–40; default 15).
