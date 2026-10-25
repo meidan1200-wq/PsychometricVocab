@@ -196,6 +196,61 @@ class SessionSelectorTest {
     }
 
     @Test
+    fun theLastQuizDominatesEvenWhenADayOfOtherUnmasteredWordsIsStillInTheWindow() {
+        // The heavy-user case IT measured on real data: a 208-word unit where 60 words were practised
+        // ~20 h ago (still unmastered, still inside the 48 h window), then a quiz 10 minutes ago.
+        val tenMinutes = 10 * 60_000L
+        var minOverlap = Int.MAX_VALUE
+        var totalOverlap = 0
+        var wrongBack = 0
+        var rightBack = 0
+        val trials = 200
+        for (seed in 1..trials) {
+            val earlierToday = (1..60).map {
+                word(it, correct = it % 3, wrong = 1 + it % 2, srs = 0.3f,
+                    updatedAt = now - 20 * hour, nextReview = now + day)
+            }
+            val quiz1Wrong = (101..105).map {
+                word(it, correct = 0, wrong = 1, srs = 0.1f, updatedAt = now - tenMinutes, nextReview = now + day)
+            }
+            val quiz1Right = (106..110).map {
+                word(it, correct = 1, wrong = 0, srs = 0.34f, updatedAt = now - tenMinutes, nextReview = now + day)
+            }
+            val oldWrong = (201..280).map {
+                word(it, correct = it % 2, wrong = 1 + it % 3, srs = 0.2f,
+                    updatedAt = now - 20 * day, nextReview = now - 5 * day)
+            }
+            val fresh = (301..358).map { word(it) }
+            val unit = earlierToday + quiz1Wrong + quiz1Right + oldWrong + fresh
+            assertEquals(208, unit.size)
+
+            val ids = SessionSelector.select(unit, 10, now, Random(seed)).map { it.id }.toSet()
+            val back = (101..110).count { it in ids }
+            minOverlap = minOf(minOverlap, back)
+            totalOverlap += back
+            wrongBack += (101..105).count { it in ids }
+            rightBack += (106..110).count { it in ids }
+        }
+        val average = totalOverlap.toDouble() / trials
+        assertTrue("on average at least 4 of the last quiz's 10 words come back (was $average)", average >= 4.0)
+        assertTrue("at least 3 in every single session (min was $minOverlap)", minOverlap >= 3)
+        assertTrue("the missed ones are preferred: wrong back $wrongBack vs right back $rightBack", wrongBack > rightBack)
+    }
+
+    @Test
+    fun carryOverWeightFallsFastWithTime() {
+        fun weightAt(minutesAgo: Long) = SessionSelector.carryOverWeight(
+            word(1, correct = 0, wrong = 1, srs = 0.1f, updatedAt = now - minutesAgo * 60_000L), now
+        )
+        val oneMinusM = 1 - SessionSelector.mastery(word(1, correct = 0, wrong = 1))
+        assertEquals(oneMinusM * 0.95, weightAt(10), 0.01)       // 10 minutes ago ~ 0.95
+        assertEquals(oneMinusM * 0.37, weightAt(3 * 60), 0.01)   // 3 h ~ 0.37
+        assertEquals(oneMinusM * 0.14, weightAt(6 * 60), 0.01)   // 6 h ~ 0.14
+        assertEquals(0.0, weightAt(24 * 60), 0.001)              // 24 h ~ 0.0003: gone, almost
+        assertTrue(weightAt(48 * 60) > 0.0)                      // still eligible at the edge of the window
+    }
+
+    @Test
     fun aWordLeavesCarryOverAtNinetyPercentAccuracyOrWhenKnown() {
         fun recent(correct: Int, wrong: Int, known: Boolean = false) =
             word(1, correct = correct, wrong = wrong, known = known, srs = 1f, updatedAt = now - hour)

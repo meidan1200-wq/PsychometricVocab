@@ -30,10 +30,14 @@ import kotlin.random.Random
  * quiz he just did win a draw against 80 of those (3 consecutive quizzes overlapped 0-2 words).
  * So a session is built in three steps:
  *   1. CARRY-OVER: up to 50% of the session is reserved for words practised in the last 48 h
- *      that are not yet mastered (m < 0.9 and not known), drawn by weight (1 - m) * recent, so
- *      the most recent and least mastered come first. A word leaves carry-over by itself once
- *      its accuracy reaches 0.9 or it becomes known, so the chance of seeing it falls as the
- *      user answers it correctly.
+ *      that are not yet mastered (m < 0.9 and not known), drawn by weight
+ *      (1 - m) * exp(-hours/3), so the LAST session's words dominate and the most recent and
+ *      least mastered come first. A word leaves carry-over by itself once its accuracy reaches
+ *      0.9 or it becomes known, so the chance of seeing it falls as the user answers it
+ *      correctly. (Recency scales tried against a heavy user's day, where ~60 words practised
+ *      20 h ago are still inside the window: exp(-h/48) can't tell "10 minutes ago" from "20
+ *      hours ago" (1.0 vs 0.66) and gave ~1 word of overlap between consecutive quizzes, the
+ *      IT finding; exp(-h/6) gave ~3.8; exp(-h/3) gives ~4.9 and never fewer than 3.)
  *   2. Then at most 30% brand-new words.
  *   3. Then the rest from the remaining practised words by the weights above.
  */
@@ -47,6 +51,13 @@ object SessionSelector {
     /** A word stops being carry-over once its mastery reaches this (or it becomes known). */
     const val CARRY_OVER_MASTERY_LIMIT = 0.9
     private const val CARRY_OVER_WINDOW_HOURS = 48.0
+
+    /**
+     * Carry-over weight decays with this time constant: 10 min ~0.95, 3 h ~0.37, 6 h ~0.14,
+     * 24 h ~0.0003. Short on purpose: the previous session's words must dominate the quota
+     * even when a day of older unmastered words is still inside the 48 h window.
+     */
+    private const val CARRY_OVER_RECENCY_HOURS = 3.0
 
     /** How strongly recency lifts the weight of a not-yet-mastered word. */
     private const val RECENCY_BOOST = 6.0
@@ -79,6 +90,12 @@ object SessionSelector {
         !isNew(w) && !w.isKnown && mastery(w) < CARRY_OVER_MASTERY_LIMIT && w.updatedAt > 0L &&
             (now - w.updatedAt) / MS_PER_HOUR <= CARRY_OVER_WINDOW_HOURS
 
+    /** Carry-over draw weight: (1 - m) * exp(-hours/3); > 0 for any carry-over candidate (<= 48 h). */
+    fun carryOverWeight(w: Word, now: Long): Double {
+        val hours = max(0L, now - w.updatedAt) / MS_PER_HOUR
+        return (1.0 - mastery(w)) * exp(-hours / CARRY_OVER_RECENCY_HOURS)
+    }
+
     /** The sampling weight of a PRACTISED word (always > 0). */
     fun weight(w: Word, now: Long, dueMultiplier: Double = DUE_MULTIPLIER_QUIZ): Double {
         val m = mastery(w)
@@ -101,10 +118,10 @@ object SessionSelector {
         val fresh = words.filter { isNew(it) }
         val practised = words.filter { !isNew(it) }
 
-        // 1. carry-over quota, by weight (1 - m) * recent (both > 0 for a candidate)
+        // 1. carry-over quota, by weight (1 - m) * exp(-hours/3) (> 0 for a candidate)
         val carryCandidates = practised.filter { isCarryOver(it, now) }
         val carryQuota = min(ceil(count * CARRY_OVER_FRACTION).toInt(), carryCandidates.size)
-        val carry = sampleBy(carryCandidates, carryQuota, random) { (1.0 - mastery(it)) * recency(it, now) }
+        val carry = sampleBy(carryCandidates, carryQuota, random) { carryOverWeight(it, now) }
         val carryIds = carry.map { it.id }.toHashSet()
 
         // 2. at most 30% brand-new words; 3. the rest from the remaining practised words
