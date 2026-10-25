@@ -30,11 +30,12 @@ import kotlin.random.Random
  * quiz he just did win a draw against 80 of those (3 consecutive quizzes overlapped 0-2 words).
  * So a session is built in three steps:
  *   1. CARRY-OVER: up to 50% of the session is reserved for words practised in the last 48 h
- *      that are not yet mastered (m < 0.9 and not known), drawn by weight
- *      (1 - m) * exp(-hours/3), so the LAST session's words dominate and the most recent and
- *      least mastered come first. A word leaves carry-over by itself once its accuracy reaches
- *      0.9 or it becomes known, so the chance of seeing it falls as the user answers it
- *      correctly. (Recency scales tried against a heavy user's day, where ~60 words practised
+ *      whose LAST answer was wrong (even if the word is known: see lastAnswerWrong) or that are
+ *      not yet mastered (m < 0.9 and not known), drawn by weight
+ *      (3 if last answer wrong) * max(1 - m, 0.15) * exp(-hours/3), so the LAST session's
+ *      words dominate and recent misses come first. A word leaves carry-over by itself once it
+ *      is answered right (and is known or at accuracy 0.9), so the chance of seeing it falls as
+ *      the user answers it correctly. (Recency scales tried against a heavy user's day, where ~60 words practised
  *      20 h ago are still inside the window: exp(-h/48) can't tell "10 minutes ago" from "20
  *      hours ago" (1.0 vs 0.66) and gave ~1 word of overlap between consecutive quizzes, the
  *      IT finding; exp(-h/6) gave ~3.8; exp(-h/3) gives ~4.9 and never fewer than 3.)
@@ -85,15 +86,42 @@ object SessionSelector {
 
     fun isDue(w: Word, now: Long): Boolean = !isNew(w) && w.nextReviewDate <= now
 
-    /** Practised in the last 48 h and not yet mastered (m < 0.9, not known): the words to keep bringing back. */
-    fun isCarryOver(w: Word, now: Long): Boolean =
-        !isNew(w) && !w.isKnown && mastery(w) < CARRY_OVER_MASTERY_LIMIT && w.updatedAt > 0L &&
-            (now - w.updatedAt) / MS_PER_HOUR <= CARRY_OVER_WINDOW_HOURS
+    /**
+     * True if the user's LAST answer to this word was wrong. There is no "last answer" column (and
+     * no schema change for one), but SrsEngine.processAnswer leaves a trace we can rely on: a wrong
+     * answer ALWAYS sets interval = 1, while any correct answer sets interval >= 6 (1 -> 6, then
+     * x ease, which only grows; the default for a never-answered word is also 1). So after at least
+     * one answer, interval == 1 means the last answer was wrong. updatedAt > 0 keeps out progress
+     * that predates the v5 timestamp (we can't date it). SessionSelectorTest ties this to
+     * SrsEngine.processAnswer, so a future change there breaks that test instead of silently
+     * breaking this.
+     *
+     * Why it matters: in QUIZ mode a wrong answer leaves isKnown = true, and the words the owner
+     * gets wrong are mostly known words with long correct histories (accuracy >= 0.9). Filtering
+     * carry-over on "not known / not mastered" threw out exactly the words he wants back.
+     */
+    fun lastAnswerWrong(w: Word): Boolean =
+        w.updatedAt > 0L && w.interval == 1 && (w.correctCount + w.wrongCount) > 0
 
-    /** Carry-over draw weight: (1 - m) * exp(-hours/3); > 0 for any carry-over candidate (<= 48 h). */
+    /**
+     * Practised in the last 48 h, and either the last answer was wrong (even for a known word) or
+     * it is not yet mastered (not known and m < 0.9): the words to keep bringing back.
+     */
+    fun isCarryOver(w: Word, now: Long): Boolean {
+        if (isNew(w) || w.updatedAt <= 0L) return false
+        if ((now - w.updatedAt) / MS_PER_HOUR > CARRY_OVER_WINDOW_HOURS) return false
+        return lastAnswerWrong(w) || (!w.isKnown && mastery(w) < CARRY_OVER_MASTERY_LIMIT)
+    }
+
+    /**
+     * Carry-over draw weight: (3 if the last answer was wrong, else 1) * max(1 - m, 0.15) *
+     * exp(-hours/3). The 0.15 floor keeps a just-missed word with a long good history (m >= 0.85)
+     * in the running; > 0 for any carry-over candidate.
+     */
     fun carryOverWeight(w: Word, now: Long): Double {
         val hours = max(0L, now - w.updatedAt) / MS_PER_HOUR
-        return (1.0 - mastery(w)) * exp(-hours / CARRY_OVER_RECENCY_HOURS)
+        val missed = if (lastAnswerWrong(w)) 3.0 else 1.0
+        return missed * max(1.0 - mastery(w), 0.15) * exp(-hours / CARRY_OVER_RECENCY_HOURS)
     }
 
     /** The sampling weight of a PRACTISED word (always > 0). */
