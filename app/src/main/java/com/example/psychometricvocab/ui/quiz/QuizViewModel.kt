@@ -1,6 +1,7 @@
 package com.example.psychometricvocab.ui.quiz
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.psychometricvocab.data.ActivityLog
@@ -135,21 +136,34 @@ class QuizViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             val allWords = repo.getWordsForSession(track, if (isReviewMode) null else unit).first()
+            val now = System.currentTimeMillis()
+            // "All words" quizzes and Practice span every unit, so the unit-importance nudge
+            // (lower units are likelier on the real test) applies; a single-unit quiz doesn't.
+            val masterMode = isReviewMode || unit == null
+            val pool: List<Word>
             val sessionWords = if (isReviewMode) {
-                // Personal PRACTICE (the Home "Practice" column): the whole track, due words
-                // favoured (multiplier 3), and a session size that adapts to how much the user
-                // actually practises per day, not the Quiz Settings length.
+                // Personal PRACTICE (the Home "Practice" column): the whole track, and a session
+                // size that adapts to how much the user actually practises per day, not the Quiz
+                // Settings length.
                 val size = PracticeSession.size(PracticeSession.recentActiveCounts(activityLog.getAllCounts()))
-                SessionSelector.select(
-                    allWords, size, System.currentTimeMillis(), Random.Default,
-                    SessionSelector.DUE_MULTIPLIER_PRACTICE
-                )
+                pool = allWords
+                SessionSelector.select(pool, size, now, Random.Default, masterMode = true)
             } else {
-                val pool = if (effectiveUnknownOnly) allWords.filter { !it.isKnown } else allWords
-                // Learning v2: recently practised / often-missed words come back with high
-                // probability, brand-new ones are capped at 30% (see SessionSelector).
-                SessionSelector.select(pool.ifEmpty { allWords }, length, System.currentTimeMillis(), Random.Default)
+                // "Only words I didn't know" must still contain a known word the user just got
+                // wrong (quiz mode keeps isKnown = true on a miss): filtering on !isKnown alone
+                // removed exactly the words the owner wants back.
+                pool = (if (effectiveUnknownOnly) SessionSelector.unknownOnlyPool(allWords) else allWords)
+                    .ifEmpty { allWords }
+                SessionSelector.select(pool, length, now, Random.Default, masterMode)
             }
+            // What the selector did, so a device run can be checked from logcat (tag SessionSelector).
+            val summary = SessionSelector.summarize(pool, sessionWords, now)
+            Log.i(
+                "SessionSelector",
+                "pool=${summary.pool} unknownOnly=$effectiveUnknownOnly master=$masterMode practice=$isReviewMode " +
+                    "recent48hInPool=${summary.recentInPool} recent48hTaken=${summary.recentTaken} " +
+                    "newTaken=${summary.newTaken} taken=${summary.taken}"
+            )
             val questions = withContext(Dispatchers.Default) {
                 sessionWords.map { word -> buildQuestion(word, allWords, track) }
             }

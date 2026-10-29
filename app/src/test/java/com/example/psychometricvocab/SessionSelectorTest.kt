@@ -1,15 +1,18 @@
 package com.example.psychometricvocab
 
 import com.example.psychometricvocab.data.SessionSelector
+import com.example.psychometricvocab.data.SrsEngine
 import com.example.psychometricvocab.data.Word
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.exp
 import kotlin.random.Random
 
 /**
- * The learning-v2 picker (replaces the old "every new word has weight 2" one). Deterministic:
- * the Random is seeded and "now" is fixed.
+ * The learning-v2 picker: one combined weight E*D*U*C per word, sampled by probability, with a
+ * 20-30% new-word share and a 48 h cap. Deterministic: the Random is seeded, "now" is fixed.
+ * (The long-run behaviour is checked by SelectionSimulationTest.)
  */
 class SessionSelectorTest {
     private val now = 1_800_000_000_000L
@@ -18,53 +21,93 @@ class SessionSelectorTest {
 
     private fun word(
         id: Int, unit: Int = 1, correct: Int = 0, wrong: Int = 0, known: Boolean = false,
-        srs: Float = 0f, updatedAt: Long = 0L, nextReview: Long = 0L, interval: Int = 1
+        srs: Float = 0f, updatedAt: Long = 0L, interval: Int = 1
     ) = Word(
         id = id, track = "english", word = "w$id", definition = "d$id", unit = unit,
         srsScore = srs, correctCount = correct, wrongCount = wrong, isKnown = known,
-        updatedAt = updatedAt, nextReviewDate = nextReview, interval = interval
+        updatedAt = updatedAt, interval = interval
     )
 
     /**
-     * A practised word that is NOT due (next review in the future), to isolate the other factors.
-     * [lastWrong] says how its last answer went, the way SrsEngine records it: a wrong answer
-     * leaves interval = 1, a correct one leaves interval >= 6 (see SessionSelector.lastAnswerWrong).
+     * A practised word. [lastWrong] says how its last answer went, the way SrsEngine records it:
+     * a wrong answer leaves interval = 1, a correct one leaves interval >= 6.
      */
     private fun practised(
-        id: Int, correct: Int, wrong: Int, hoursAgo: Long, known: Boolean = false, lastWrong: Boolean = false
-    ) = word(id, correct = correct, wrong = wrong, known = known, srs = 1f,
-        updatedAt = now - hoursAgo * hour, nextReview = now + 10 * day, interval = if (lastWrong) 1 else 6)
+        id: Int, correct: Int, wrong: Int, hoursAgo: Double, known: Boolean = false,
+        lastWrong: Boolean = false, unit: Int = 1, interval: Int = if (lastWrong) 1 else 6
+    ) = word(id, unit = unit, correct = correct, wrong = wrong, known = known, srs = 1f,
+        updatedAt = now - (hoursAgo * hour).toLong(), interval = interval)
 
-    private fun frequency(pool: List<Word>, count: Int, trials: Int, seed: Int = 7): Map<Int, Int> {
+    private fun frequency(pool: List<Word>, count: Int, trials: Int, seed: Int = 7, master: Boolean = false): Map<Int, Int> {
         val random = Random(seed)
         val hits = HashMap<Int, Int>()
         repeat(trials) {
-            SessionSelector.select(pool, count, now, random).forEach { hits.merge(it.id, 1, Int::plus) }
+            SessionSelector.select(pool, count, now, random, master).forEach { hits.merge(it.id, 1, Int::plus) }
         }
         return hits
+    }
+
+    // ---- the factors ----
+
+    @Test
+    fun exposureIsAStrongPullFromTheLastSessionAndAMildOneFromTheLastDays() {
+        val c = SessionSelector.Config()
+        fun e(hoursAgo: Double) = SessionSelector.exposure(practised(1, 1, 1, hoursAgo), now)
+        fun expected(h: Double) = 1 + c.shortBoost * exp(-h / c.shortHours) + c.longBoost * exp(-h / c.longHours)
+        for (h in listOf(0.0, 1.0, 6.0, 12.0, 48.0, 200.0)) assertEquals(expected(h), e(h), 1e-9)
+        assertTrue("falls with time", e(0.0) > e(3.0) && e(3.0) > e(24.0) && e(24.0) > e(72.0))
+        assertTrue("the last session beats anything older by a wide margin", e(6.0) > 10 * e(48.0))
+        assertEquals("weeks later there is no pull", 1.0, e(24 * 30.0), 0.01)
+        assertEquals("no timestamp, nothing to date it by", 1.0, SessionSelector.exposure(word(1, correct = 3, wrong = 1), now), 0.0)
+    }
+
+    @Test
+    fun difficultyComesFromTheSuccessRateAndAMissRaisesIt() {
+        val w = practised(1, correct = 2, wrong = 2, hoursAgo = 5.0)             // a = 3/6 = 0.5
+        assertEquals(0.15 + 0.5, SessionSelector.difficulty(w), 1e-9)
+        assertEquals(1.5 * (0.15 + 0.5), SessionSelector.difficulty(w.copy(interval = 1)), 1e-9)
+        val solid = practised(2, correct = 30, wrong = 0, hoursAgo = 5.0, known = true)
+        assertTrue("a very solid word still has the floor", SessionSelector.difficulty(solid) > 0.15)
+        assertTrue(SessionSelector.difficulty(practised(3, 0, 3, 5.0)) > SessionSelector.difficulty(practised(4, 5, 0, 5.0)))
+    }
+
+    @Test
+    fun unitImportanceIsASoftNudgeOnlyInMasterMode() {
+        assertEquals(1.0, SessionSelector.unitImportance(word(1, unit = 1), masterMode = true), 1e-9)
+        assertEquals(1.0 / 1.9, SessionSelector.unitImportance(word(2, unit = 10), masterMode = true), 1e-9) // ~0.53
+        assertEquals(1.0, SessionSelector.unitImportance(word(3, unit = 10), masterMode = false), 1e-9)
+    }
+
+    @Test
+    fun aWordAnsweredRightTwiceInARowRecentlyCoolsDown() {
+        // interval 1 -> 6 after the first right answer, then x ease (>= 7) after the second
+        val twice = practised(1, correct = 4, wrong = 1, hoursAgo = 2.0, interval = 14)
+        val once = practised(2, correct = 4, wrong = 1, hoursAgo = 2.0, interval = 6)
+        assertTrue(SessionSelector.answeredRightTwiceRecently(twice, now))
+        assertTrue(!SessionSelector.answeredRightTwiceRecently(once, now))
+        assertTrue("a miss is never cooled down", !SessionSelector.answeredRightTwiceRecently(twice.copy(interval = 1), now))
+        assertTrue("only within 24 h", !SessionSelector.answeredRightTwiceRecently(twice.copy(updatedAt = now - 25 * hour), now))
+        assertEquals(0.3, SessionSelector.weight(twice, now) / SessionSelector.weight(twice.copy(interval = 6), now), 1e-9)
     }
 
     // ---- the headline behaviour ----
 
     @Test
     fun aWordMissedInTheLastSessionBeatsAnOldMasteredOne() {
-        val missed = practised(1, correct = 0, wrong = 1, hoursAgo = 1, lastWrong = true)
-        val mastered = practised(2, correct = 10, wrong = 0, hoursAgo = 30 * 24, known = true)
-        val fillers = (3..12).map { practised(it, correct = 2, wrong = 2, hoursAgo = 5 * 24) }
+        val missed = practised(1, correct = 0, wrong = 1, hoursAgo = 1.0, lastWrong = true)
+        val mastered = practised(2, correct = 10, wrong = 0, hoursAgo = 30 * 24.0, known = true)
+        val fillers = (3..12).map { practised(it, correct = 2, wrong = 2, hoursAgo = 5 * 24.0) }
 
-        // the weights themselves (deterministic): ~12x apart
-        assertTrue(SessionSelector.weight(missed, now) > 8 * SessionSelector.weight(mastered, now))
-
+        assertTrue(SessionSelector.weight(missed, now) > 10 * SessionSelector.weight(mastered, now))
         val hits = frequency(listOf(missed, mastered) + fillers, count = 3, trials = 4000)
         assertTrue("missed ${hits[1]} vs mastered ${hits[2]}", hits.getValue(1) > 5 * hits.getValue(2))
     }
 
     @Test
     fun probabilityDropsAsAccuracyRises() {
-        // same recency, all answered wrong once; they differ only in how many times they were right
-        val ladder = listOf(0, 1, 3, 8).mapIndexed { i, c -> practised(i + 1, correct = c, wrong = 1, hoursAgo = 1) }
-        val fillers = (10..11).map { practised(it, correct = 2, wrong = 2, hoursAgo = 24) }
-
+        // same recency, all answered right last; they differ only in how many times they were right
+        val ladder = listOf(0, 1, 3, 8).mapIndexed { i, c -> practised(i + 1, correct = c, wrong = 1, hoursAgo = 30.0) }
+        val fillers = (10..11).map { practised(it, correct = 2, wrong = 2, hoursAgo = 30.0) }
         val w = ladder.map { SessionSelector.weight(it, now) }
         assertTrue("weights should strictly fall: $w", w.zipWithNext().all { (a, b) -> a > b })
 
@@ -75,61 +118,63 @@ class SessionSelectorTest {
 
     @Test
     fun recentlyPractisedBeatsLongAgoAtTheSameAccuracy() {
-        val recent = practised(1, correct = 1, wrong = 1, hoursAgo = 1)
-        val old = practised(2, correct = 1, wrong = 1, hoursAgo = 20 * 24)
-        assertTrue(SessionSelector.weight(recent, now) > SessionSelector.weight(old, now))
+        val recent = practised(1, correct = 1, wrong = 1, hoursAgo = 1.0)
+        val old = practised(2, correct = 1, wrong = 1, hoursAgo = 20 * 24.0)
+        assertTrue(SessionSelector.weight(recent, now) > 3 * SessionSelector.weight(old, now))
     }
 
     @Test
-    fun knownWordsAreAtLeast85PercentMastered() {
-        val shaky = word(1, correct = 1, wrong = 3, known = true)
-        assertEquals(0.85, SessionSelector.mastery(shaky), 1e-9)
-        val solid = word(2, correct = 20, wrong = 0, known = true)
-        assertTrue(SessionSelector.mastery(solid) > 0.85)
+    fun masterModeFavoursLowerUnitsWithoutExcludingHigherOnes() {
+        val unit1 = (1..40).map { practised(it, correct = 2, wrong = 2, hoursAgo = 100.0, unit = 1) }
+        val unit10 = (101..140).map { practised(it, correct = 2, wrong = 2, hoursAgo = 100.0, unit = 10) }
+        val hits = frequency(unit1 + unit10, count = 10, trials = 600, master = true)
+        val share1 = (1..40).sumOf { hits.getOrDefault(it, 0) }
+        val share10 = (101..140).sumOf { hits.getOrDefault(it, 0) }
+        assertTrue("unit 1 $share1 vs unit 10 $share10", share1 > 1.2 * share10)
+        assertTrue("a soft nudge, never a hard rule: unit 10 still appears ($share10)", share10 > 0)
+        val single = frequency(unit1 + unit10, count = 10, trials = 600, master = false)
+        val s1 = (1..40).sumOf { single.getOrDefault(it, 0) }
+        val s10 = (101..140).sumOf { single.getOrDefault(it, 0) }
+        assertTrue("no nudge outside master mode ($s1 vs $s10)", s1 < 1.15 * s10 && s10 < 1.15 * s1)
     }
 
-    @Test
-    fun unseenWordsHaveNoRecency() {
-        assertEquals(0.0, SessionSelector.recency(word(1), now), 0.0)
-    }
+    // ---- the balance: new words and the 48 h cap ----
 
     @Test
-    fun dueWordsGetTheDueMultiplier() {
-        val notDue = practised(1, correct = 1, wrong = 1, hoursAgo = 5)
-        val due = notDue.copy(id = 2, nextReviewDate = now - hour)
-        assertEquals(2.0, SessionSelector.weight(due, now) / SessionSelector.weight(notDue, now), 1e-9)
-        assertEquals(
-            3.0,
-            SessionSelector.weight(due, now, SessionSelector.DUE_MULTIPLIER_PRACTICE) /
-                SessionSelector.weight(notDue, now, SessionSelector.DUE_MULTIPLIER_PRACTICE),
-            1e-9
-        )
-    }
-
-    // ---- new words ----
-
-    @Test
-    fun newWordCapHolds() {
-        val practisedPool = (1..50).map { practised(it, correct = it % 5, wrong = 1 + it % 3, hoursAgo = it.toLong()) }
-        val fresh = (101..200).map { word(it, unit = 1 + it % 3) }
+    fun newWordsAreTwentyToThirtyPercentOfASession() {
+        val practisedPool = (1..60).map { practised(it, correct = it % 5, wrong = 1 + it % 3, hoursAgo = 100.0 + it) }
+        val fresh = (101..300).map { word(it, unit = 1 + it % 3) }
         val random = Random(11)
-        for ((count, cap) in listOf(10 to 3, 15 to 5, 20 to 6, 5 to 2)) {
-            repeat(300) {
+        for ((count, lo, hi) in listOf(Triple(10, 2, 3), Triple(15, 3, 5), Triple(20, 4, 6), Triple(5, 1, 2))) {
+            val seen = HashSet<Int>()
+            repeat(400) {
                 val picked = SessionSelector.select(practisedPool + fresh, count, now, random)
+                val n = picked.count { SessionSelector.isNew(it) }
                 assertEquals(count, picked.size)
-                assertTrue("new words ${picked.count { SessionSelector.isNew(it) }} > cap $cap", picked.count { SessionSelector.isNew(it) } <= cap)
+                assertTrue("$n new of $count, expected $lo..$hi", n in lo..hi)
+                seen.add(n)
             }
+            assertEquals("the share varies across the whole $lo..$hi range", (lo..hi).toSet(), seen)
         }
     }
 
     @Test
     fun notEnoughPractisedWordsAreToppedUpWithNewOnes() {
-        val practisedPool = (1..3).map { practised(it, correct = 1, wrong = 1, hoursAgo = 2) }
+        val practisedPool = (1..3).map { practised(it, correct = 1, wrong = 1, hoursAgo = 2.0) }
         val fresh = (101..200).map { word(it) }
         val picked = SessionSelector.select(practisedPool + fresh, 10, now, Random(3))
         assertEquals(10, picked.size)
         assertEquals(setOf(1, 2, 3), picked.map { it.id }.filter { it <= 3 }.toSet())
         assertEquals(7, picked.count { SessionSelector.isNew(it) })
+    }
+
+    @Test
+    fun withTooFewNewWordsTheRestComesFromPractisedOnes() {
+        val practisedPool = (1..40).map { practised(it, correct = 1, wrong = 1, hoursAgo = 40.0 + it) }
+        val fresh = (101..101).map { word(it) } // only one unseen word left
+        val picked = SessionSelector.select(practisedPool + fresh, 10, now, Random(4))
+        assertEquals(10, picked.size)
+        assertTrue(picked.count { SessionSelector.isNew(it) } <= 1)
     }
 
     @Test
@@ -142,166 +187,40 @@ class SessionSelectorTest {
     fun newWordsAreIntroducedInUnitOrder() {
         // 5 units x 30 new words, ids ascending with unit; plus plenty of practised words
         val fresh = (1..5).flatMap { u -> (1..30).map { word(1000 + u * 100 + it, unit = u) } }
-        val practisedPool = (1..40).map { practised(it, correct = 2, wrong = 1, hoursAgo = 3) }
+        val practisedPool = (1..40).map { practised(it, correct = 2, wrong = 1, hoursAgo = 100.0) }
         val random = Random(21)
-        repeat(100) {
-            val newPicked = SessionSelector.select(practisedPool + fresh, 10, now, random).filter { SessionSelector.isNew(it) }
+        for (master in listOf(false, true)) repeat(100) {
+            val newPicked = SessionSelector.select(practisedPool + fresh, 10, now, random, master).filter { SessionSelector.isNew(it) }
             assertTrue("a session introduces some new words", newPicked.isNotEmpty())
-            // the cap is 3 new words, drawn from the first ~9 in (unit, id) order: all unit 1
+            // 2-3 new words, drawn from the first ~9 in (unit, id) order: all of unit 1
             assertTrue("new words should come from the front of unit 1: ${newPicked.map { it.id }}", newPicked.all { it.unit == 1 })
         }
     }
 
-    // ---- carry-over: the owner's main complaint (words from the last quiz didn't come back) ----
-
-    /** A big, realistic pool: 80 OLD wrong-not-known words, 60 old mastered known ones, 60 never seen. */
-    private fun realisticPool(): List<Word> {
-        val oldWrong = (1..80).map {
-            word(it, correct = it % 2, wrong = 1 + it % 3, srs = 0.2f,
-                updatedAt = now - 20 * day, nextReview = now - 5 * day)
+    @Test
+    fun atMostHalfASessionComesFromWordsAnsweredInTheLast48Hours() {
+        val recent = (1..40).map { practised(it, correct = 0, wrong = 2, hoursAgo = 0.5, lastWrong = true) }
+        val older = (101..160).map { practised(it, correct = 3, wrong = 1, hoursAgo = 200.0) }
+        val random = Random(9)
+        for ((count, cap) in listOf(10 to 5, 15 to 8, 20 to 10)) repeat(200) {
+            val picked = SessionSelector.select(recent + older, count, now, random)
+            val n = picked.count { SessionSelector.isRecent(it, now) }
+            assertTrue("$n recent of $count (cap $cap)", n <= cap)
         }
-        val oldMastered = (101..160).map {
-            word(it, correct = 10, known = true, srs = 3f, updatedAt = now - 30 * day, nextReview = now + 10 * day)
-        }
-        val fresh = (201..260).map { word(it, unit = 1 + it % 4) }
-        return oldWrong + oldMastered + fresh
-    }
-
-    /** Answer a quiz like the app does: first [wrongCount] wrong, the rest right, all stamped at [at]. */
-    private fun answered(quiz: List<Word>, wrongCount: Int, at: Long): List<Word> =
-        quiz.mapIndexed { i, w ->
-            com.example.psychometricvocab.data.SrsEngine.processAnswer(w, isCorrect = i >= wrongCount, isQuiz = true)
-                .copy(updatedAt = at)
-        }
-
-    @Test
-    fun wordsFromTheLastQuizComeBackInTheNextOneWrongOnesPreferred() {
-        var minOverlap = Int.MAX_VALUE
-        var wrongBack = 0
-        var rightBack = 0
-        val trials = 200
-        for (seed in 1..trials) {
-            val random = Random(seed)
-            val pool = realisticPool()
-            val quiz1 = SessionSelector.select(pool, 10, now, random)
-            val after = answered(quiz1, wrongCount = 5, at = now)
-            val wrongIds = after.take(5).map { it.id }.toSet()
-            val rightIds = after.drop(5).map { it.id }.toSet()
-            val byId = pool.associateBy { it.id }.toMutableMap().also { m -> after.forEach { m[it.id] = it } }
-
-            val quiz2 = SessionSelector.select(byId.values.toList(), 10, now + 10 * 60_000L, random)
-            val ids = quiz2.map { it.id }.toSet()
-            val back = (wrongIds + rightIds).count { it in ids }
-            minOverlap = minOf(minOverlap, back)
-            wrongBack += wrongIds.count { it in ids }
-            rightBack += rightIds.count { it in ids }
-        }
-        assertTrue("every follow-up quiz must reuse at least 4 of the last quiz's 10 words (min was $minOverlap)", minOverlap >= 4)
-        assertTrue("the missed words should be preferred: wrong back $wrongBack vs right back $rightBack", wrongBack > rightBack)
     }
 
     @Test
-    fun theLastQuizDominatesEvenWhenADayOfOtherUnmasteredWordsIsStillInTheWindow() {
-        // The heavy-user case IT measured on real data: a 208-word unit where 60 words were practised
-        // ~20 h ago (still unmastered, still inside the 48 h window), then a quiz 10 minutes ago.
-        val tenMinutes = 10 * 60_000L
-        var minOverlap = Int.MAX_VALUE
-        var totalOverlap = 0
-        var wrongBack = 0
-        var rightBack = 0
-        val trials = 200
-        for (seed in 1..trials) {
-            val earlierToday = (1..60).map {
-                word(it, correct = it % 3, wrong = 1 + it % 2, srs = 0.3f,
-                    updatedAt = now - 20 * hour, nextReview = now + day, interval = if (it % 2 == 0) 6 else 1)
-            }
-            val quiz1Wrong = (101..105).map {
-                word(it, correct = 0, wrong = 1, srs = 0.1f, updatedAt = now - tenMinutes, nextReview = now + day)
-            }
-            val quiz1Right = (106..110).map {
-                word(it, correct = 1, wrong = 0, srs = 0.34f, updatedAt = now - tenMinutes, nextReview = now + day, interval = 6)
-            }
-            val oldWrong = (201..280).map {
-                word(it, correct = it % 2, wrong = 1 + it % 3, srs = 0.2f,
-                    updatedAt = now - 20 * day, nextReview = now - 5 * day)
-            }
-            val fresh = (301..358).map { word(it) }
-            val unit = earlierToday + quiz1Wrong + quiz1Right + oldWrong + fresh
-            assertEquals(208, unit.size)
-
-            val ids = SessionSelector.select(unit, 10, now, Random(seed)).map { it.id }.toSet()
-            val back = (101..110).count { it in ids }
-            minOverlap = minOf(minOverlap, back)
-            totalOverlap += back
-            wrongBack += (101..105).count { it in ids }
-            rightBack += (106..110).count { it in ids }
-        }
-        val average = totalOverlap.toDouble() / trials
-        assertTrue("on average at least 4 of the last quiz's 10 words come back (was $average)", average >= 4.0)
-        assertTrue("at least 3 in every single session (min was $minOverlap)", minOverlap >= 3)
-        assertTrue("the missed ones are preferred: wrong back $wrongBack vs right back $rightBack", wrongBack > rightBack)
+    fun theRecentCapGivesWayRatherThanReturningAShortSession() {
+        val allRecent = (1..30).map { practised(it, correct = 0, wrong = 2, hoursAgo = 1.0, lastWrong = true) }
+        assertEquals(10, SessionSelector.select(allRecent, 10, now, Random(2)).size)
     }
 
-    @Test
-    fun carryOverWeightFallsFastWithTime() {
-        // last answer RIGHT (interval 6) so this isolates the time decay (a miss would triple it)
-        fun weightAt(minutesAgo: Long) = SessionSelector.carryOverWeight(
-            word(1, correct = 0, wrong = 1, srs = 0.1f, updatedAt = now - minutesAgo * 60_000L, interval = 6), now
-        )
-        val oneMinusM = 1 - SessionSelector.mastery(word(1, correct = 0, wrong = 1))
-        assertEquals(oneMinusM * 0.95, weightAt(10), 0.01)       // 10 minutes ago ~ 0.95
-        assertEquals(oneMinusM * 0.37, weightAt(3 * 60), 0.01)   // 3 h ~ 0.37
-        assertEquals(oneMinusM * 0.14, weightAt(6 * 60), 0.01)   // 6 h ~ 0.14
-        assertEquals(0.0, weightAt(24 * 60), 0.001)              // 24 h ~ 0.0003: gone, almost
-        assertTrue(weightAt(48 * 60) > 0.0)                      // still eligible at the edge of the window
-    }
-
-    @Test
-    fun aWordLeavesCarryOverAtNinetyPercentAccuracyOrWhenKnown() {
-        // last answer RIGHT (interval 6): only the mastery rule can make these carry-over
-        fun recent(correct: Int, wrong: Int, known: Boolean = false) =
-            word(1, correct = correct, wrong = wrong, known = known, srs = 1f, updatedAt = now - hour, interval = 6)
-        assertTrue(SessionSelector.isCarryOver(recent(correct = 0, wrong = 1), now))
-        assertTrue("accuracy 8/9 = 0.889 is still carry-over", SessionSelector.isCarryOver(recent(correct = 7, wrong = 0), now))
-        assertTrue("accuracy 0.9 exactly: out", !SessionSelector.isCarryOver(recent(correct = 8, wrong = 0), now))
-        assertTrue("accuracy above 0.9: out", !SessionSelector.isCarryOver(recent(correct = 9, wrong = 0), now))
-        assertTrue("known and last answered right: out, whatever the accuracy", !SessionSelector.isCarryOver(recent(correct = 0, wrong = 1, known = true), now))
-        assertTrue("practised more than 48 h ago: out", !SessionSelector.isCarryOver(recent(correct = 0, wrong = 1).copy(updatedAt = now - 49 * hour), now))
-        assertTrue("never practised: out", !SessionSelector.isCarryOver(word(2), now))
-    }
-
-    @Test
-    fun aWordJustGotWrongIsCarryOverEvenIfKnownWithAGreatHistory() {
-        // In quiz mode a wrong answer leaves isKnown = true, and the owner's misses are mostly known
-        // words with long correct histories: these are exactly the words to bring back.
-        val missedKnown = word(1, correct = 8, wrong = 2, known = true, srs = 3f, updatedAt = now - 10 * 60_000L, interval = 1)
-        assertTrue(SessionSelector.isCarryOver(missedKnown, now))
-        val missedMastered = word(2, correct = 30, wrong = 1, known = true, srs = 5f, updatedAt = now - hour, interval = 1)
-        assertTrue("accuracy 0.94 and known, but the last answer was wrong", SessionSelector.isCarryOver(missedMastered, now))
-        // ...but only within 48 h, and a later correct answer (interval grows) takes it out again
-        assertTrue(!SessionSelector.isCarryOver(missedKnown.copy(updatedAt = now - 49 * hour), now))
-        assertTrue(!SessionSelector.isCarryOver(missedKnown.copy(interval = 6), now))
-        // progress that predates the v5 timestamp can't be dated, so it is never carry-over
-        assertTrue(!SessionSelector.isCarryOver(missedKnown.copy(updatedAt = 0L), now))
-    }
-
-    @Test
-    fun aMissWeighsThreeTimesAndKnownWordsKeepAFloor() {
-        val recentTime = now - 10 * 60_000L
-        val wrongOne = word(1, correct = 2, wrong = 2, srs = 0.5f, updatedAt = recentTime, interval = 1)
-        val rightOne = wrongOne.copy(id = 2, interval = 6)
-        assertEquals(3.0, SessionSelector.carryOverWeight(wrongOne, now) / SessionSelector.carryOverWeight(rightOne, now), 1e-9)
-        // a just-missed known word with a long history: mastery 0.85+ would give ~0, the 0.15 floor keeps it > 0
-        val missedKnown = word(3, correct = 30, wrong = 1, known = true, srs = 5f, updatedAt = recentTime, interval = 1)
-        val w = SessionSelector.carryOverWeight(missedKnown, now)
-        assertTrue("floor 0.15 x 3 x ~0.95 = ~0.43, was $w", w > 0.4 && w < 0.45)
-    }
+    // ---- last answer wrong, even for known words ----
 
     @Test
     fun lastAnswerWrongAgreesWithWhatSrsEngineActuallyDoes() {
         // Ties the interval == 1 trick to SrsEngine.processAnswer: if that ever changes, THIS fails,
-        // instead of carry-over silently choosing the wrong words.
-        val engine = com.example.psychometricvocab.data.SrsEngine
+        // instead of the selector silently choosing the wrong words.
         val starts = listOf(
             word(1, updatedAt = now),                                                              // brand new
             word(2, correct = 4, wrong = 1, known = true, srs = 3f, interval = 6, updatedAt = now),
@@ -309,134 +228,81 @@ class SessionSelectorTest {
             word(4, correct = 1, wrong = 3, srs = 0.2f, interval = 1, updatedAt = now)
         )
         for (start in starts) for (isQuiz in listOf(true, false)) {
-            val wrong = engine.processAnswer(start, isCorrect = false, isQuiz = isQuiz).copy(updatedAt = now)
+            val wrong = SrsEngine.processAnswer(start, isCorrect = false, isQuiz = isQuiz).copy(updatedAt = now)
             assertTrue("wrong answer (quiz=$isQuiz) from $start must read as last-answer-wrong", SessionSelector.lastAnswerWrong(wrong))
-            val notSure = engine.processAnswer(start, isCorrect = false, isQuiz = isQuiz, isNotSure = true).copy(updatedAt = now)
+            val notSure = SrsEngine.processAnswer(start, isCorrect = false, isQuiz = isQuiz, isNotSure = true).copy(updatedAt = now)
             assertTrue("a no-idea answer (quiz=$isQuiz) is a wrong answer too", SessionSelector.lastAnswerWrong(notSure))
-            val right = engine.processAnswer(start, isCorrect = true, isQuiz = isQuiz).copy(updatedAt = now)
+            val right = SrsEngine.processAnswer(start, isCorrect = true, isQuiz = isQuiz).copy(updatedAt = now)
             assertTrue("correct answer (quiz=$isQuiz) from $start must NOT read as wrong", !SessionSelector.lastAnswerWrong(right))
         }
-        // and across a run of answers, the flag always follows the latest one
         var w = word(9, updatedAt = now)
         for (correct in listOf(true, true, false, true, false, false, true, true, true)) {
-            w = engine.processAnswer(w, isCorrect = correct, isQuiz = true).copy(updatedAt = now)
+            w = SrsEngine.processAnswer(w, isCorrect = correct, isQuiz = true).copy(updatedAt = now)
             assertEquals("after a ${if (correct) "right" else "wrong"} answer", !correct, SessionSelector.lastAnswerWrong(w))
         }
-        // a never-answered word, and progress without a timestamp, are not "last answer wrong"
         assertTrue(!SessionSelector.lastAnswerWrong(word(10, updatedAt = now)))
         assertTrue(!SessionSelector.lastAnswerWrong(word(11, correct = 3, wrong = 1, updatedAt = 0L)))
     }
 
     @Test
+    fun theCooldownRuleAgreesWithWhatSrsEngineActuallyDoes() {
+        // "right twice in a row" == interval >= 7 after SrsEngine's 1 -> 6 -> x ease progression
+        var w = word(1, updatedAt = now)
+        val engine = SrsEngine
+        w = engine.processAnswer(w, isCorrect = true, isQuiz = true).copy(updatedAt = now)
+        assertTrue("one right answer is not enough", !SessionSelector.answeredRightTwiceRecently(w, now))
+        w = engine.processAnswer(w, isCorrect = true, isQuiz = true).copy(updatedAt = now)
+        assertTrue("two right answers in a row", SessionSelector.answeredRightTwiceRecently(w, now))
+        w = engine.processAnswer(w, isCorrect = false, isQuiz = true).copy(updatedAt = now)
+        assertTrue("a miss resets it", !SessionSelector.answeredRightTwiceRecently(w, now))
+        w = engine.processAnswer(w, isCorrect = true, isQuiz = true).copy(updatedAt = now)
+        assertTrue("one right after a miss is not enough", !SessionSelector.answeredRightTwiceRecently(w, now))
+    }
+
+    @Test
+    fun theOnlyWordsIDidntKnowPoolKeepsAKnownWordJustAnsweredWrong() {
+        val notKnown = word(1, correct = 1, wrong = 2, srs = 0.3f, updatedAt = now - hour, interval = 1)
+        val knownMissed = word(2, correct = 8, wrong = 1, known = true, srs = 3f, updatedAt = now - hour, interval = 1)
+        val knownRight = word(3, correct = 8, wrong = 1, known = true, srs = 3f, updatedAt = now - hour, interval = 14)
+        val knownOld = word(4, correct = 8, wrong = 1, known = true, srs = 3f, updatedAt = 0L, interval = 1)
+        val pool = SessionSelector.unknownOnlyPool(listOf(notKnown, knownMissed, knownRight, knownOld))
+        assertEquals(listOf(1, 2), pool.map { it.id })
+    }
+
+    @Test
     fun theWordsAKnownWordHeavyUserGetsWrongComeBackInTheNextQuiz() {
-        // The real owner's Unit 1 (IT): full of KNOWN words with long correct histories (8 right, 1 wrong).
-        // The previous quiz's 5 wrong answers are on such words; quiz mode left them isKnown = true.
-        val engine = com.example.psychometricvocab.data.SrsEngine
+        // The owner's Unit 1 (IT): full of KNOWN words with long histories (8 right, 1 wrong). The
+        // previous quiz's 5 wrong answers are on such words; quiz mode left them isKnown = true.
         val tenMinutes = 10 * 60_000L
-        var minBack = Int.MAX_VALUE
+        var totalMissed = 0
+        var totalRight = 0
         val trials = 200
         for (seed in 1..trials) {
             val knownHistory = (1..120).map {
-                word(it, correct = 8, wrong = 1, known = true, srs = 3f,
-                    updatedAt = now - 20 * day, nextReview = now + 10 * day, interval = 14)
+                word(it, correct = 8, wrong = 1, known = true, srs = 3f, updatedAt = now - 20 * day, interval = 14)
             }
             val oldWrong = (201..280).map {
-                word(it, correct = it % 2, wrong = 1 + it % 3, srs = 0.2f, updatedAt = now - 20 * day, nextReview = now - 5 * day)
+                word(it, correct = it % 2, wrong = 1 + it % 3, srs = 0.2f, updatedAt = now - 20 * day)
             }
             val fresh = (301..340).map { word(it) }
-            val pool = knownHistory + oldWrong + fresh
-
-            // quiz 1 (10 minutes ago): 5 of the known words answered WRONG, 5 answered right
             val quiz1 = knownHistory.take(10).mapIndexed { i, w ->
-                engine.processAnswer(w, isCorrect = i >= 5, isQuiz = true).copy(updatedAt = now - tenMinutes)
+                SrsEngine.processAnswer(w, isCorrect = i >= 5, isQuiz = true).copy(updatedAt = now - tenMinutes)
             }
-            val missedIds = quiz1.take(5).map { it.id }.toSet()
             assertTrue("quiz mode keeps a missed known word known", quiz1.take(5).all { it.isKnown })
-            val byId = pool.associateBy { it.id }.toMutableMap().also { m -> quiz1.forEach { m[it.id] = it } }
-
+            val byId = (knownHistory + oldWrong + fresh).associateBy { it.id }.toMutableMap().also { m -> quiz1.forEach { m[it.id] = it } }
             val next = SessionSelector.select(byId.values.toList(), 10, now, Random(seed)).map { it.id }.toSet()
-            minBack = minOf(minBack, missedIds.count { it in next })
+            totalMissed += quiz1.take(5).count { it.id in next }
+            totalRight += quiz1.drop(5).count { it.id in next }
         }
-        assertTrue("at least 4 of the 5 missed words must come back in every seed (min was $minBack)", minBack >= 4)
+        assertTrue("the missed known words must come back: $totalMissed vs right $totalRight over $trials quizzes",
+            totalMissed >= 2.0 * trials && totalMissed > 1.5 * totalRight)
     }
 
-    @Test
-    fun masteredWordsNoLongerGetTheCarryOverQuota() {
-        // 10 words practised minutes ago that have reached >= 0.9 accuracy, among 80 old wrong ones.
-        val mastered = (301..310).map {
-            word(it, correct = 9, wrong = 0, srs = 2f, updatedAt = now - 10 * 60_000L, nextReview = now + 10 * day, interval = 14)
-        }
-        val pool = realisticPool().filter { it.id <= 80 || it.id >= 201 } + mastered
-        val random = Random(77)
-        var picked = 0
-        val trials = 300
-        repeat(trials) {
-            picked += SessionSelector.select(pool, 10, now, random).count { it.id in 301..310 }
-        }
-        // They get no reserved slots and weigh little in the open draw: well under one per session.
-        assertTrue("mastered recent words picked $picked times in $trials sessions", picked < trials / 2)
-    }
-
-    @Test
-    fun theCarryOverQuotaIsHalfTheSession() {
-        val carry = (401..440).map { word(it, correct = 0, wrong = 1, srs = 0.2f, updatedAt = now - hour, nextReview = now + day) }
-        val pool = realisticPool().filter { it.id <= 80 } + carry
-        val random = Random(5)
-        for ((count, quota) in listOf(10 to 5, 15 to 8, 20 to 10)) {
-            repeat(100) {
-                val picked = SessionSelector.select(pool, count, now, random)
-                assertEquals(count, picked.size)
-                assertEquals(count, picked.map { it.id }.toSet().size)
-                assertTrue("carry-over words ${picked.count { it.id in 401..440 }} < quota $quota", picked.count { it.id in 401..440 } >= quota)
-            }
-        }
-    }
-
-    @Test
-    fun withFewerCarryOverWordsThanTheQuotaAllOfThemAreTaken() {
-        val carry = (401..403).map { word(it, correct = 0, wrong = 1, srs = 0.2f, updatedAt = now - hour, nextReview = now + day) }
-        val pool = realisticPool() + carry
-        val random = Random(8)
-        repeat(100) {
-            val ids = SessionSelector.select(pool, 10, now, random).map { it.id }.toSet()
-            assertTrue("all 3 carry-over words must be in the session: $ids", ids.containsAll(setOf(401, 402, 403)))
-        }
-    }
-
-    @Test
-    fun theMostRecentAndLeastMasteredCarryOverWordsComeFirst() {
-        // 12 candidates, quota 5 of 10: the freshly missed ones beat the older, better-known ones.
-        val freshlyMissed = (501..506).map { word(it, correct = 0, wrong = 2, srs = 0.1f, updatedAt = now - 10 * 60_000L, nextReview = now + day) }
-        val olderBetter = (511..516).map { word(it, correct = 6, wrong = 1, srs = 0.9f, updatedAt = now - 40 * hour, nextReview = now + day, interval = 14) }
-        val pool = freshlyMissed + olderBetter + (601..640).map { word(it) }
-        val random = Random(13)
-        var missed = 0
-        var better = 0
-        repeat(300) {
-            val picked = SessionSelector.select(pool, 10, now, random).map { it.id }
-            missed += picked.count { it in 501..506 }
-            better += picked.count { it in 511..516 }
-        }
-        assertTrue("freshly missed $missed vs older/better $better", missed > 2 * better)
-    }
-
-    @Test
-    fun practiceSessionsGetTheSameCarryOver() {
-        val carry = (701..720).map { word(it, correct = 1, wrong = 2, srs = 0.2f, updatedAt = now - 2 * hour, nextReview = now + day) }
-        val pool = realisticPool() + carry
-        val random = Random(31)
-        repeat(100) {
-            val picked = SessionSelector.select(pool, 30, now, random, SessionSelector.DUE_MULTIPLIER_PRACTICE)
-            assertEquals(30, picked.size)
-            assertTrue("practice carry-over ${picked.count { it.id in 701..720 }}", picked.count { it.id in 701..720 } >= 15)
-        }
-    }
-
-    // ---- shape of the result (ported from the old picker's tests) ----
+    // ---- shape of the result ----
 
     @Test
     fun neverRepeatsAWord() {
-        val words = (1..40).map { word(it, wrong = it % 3, correct = it % 2, srs = 1f, nextReview = now - hour, updatedAt = now - hour) }
+        val words = (1..40).map { practised(it, correct = it % 2, wrong = it % 3, hoursAgo = it.toDouble()) }
         val random = Random(1)
         repeat(200) {
             val selected = SessionSelector.select(words, 20, now, random)
@@ -461,8 +327,8 @@ class SessionSelectorTest {
 
     @Test
     fun prefersHardWords() {
-        val hard = (1..10).map { practised(it, correct = 0, wrong = 5, hoursAgo = 2) }
-        val easy = (11..110).map { practised(it, correct = 5, wrong = 0, hoursAgo = 24 * 20, known = true) }
+        val hard = (1..10).map { practised(it, correct = 0, wrong = 5, hoursAgo = 2.0, lastWrong = true) }
+        val easy = (11..110).map { practised(it, correct = 5, wrong = 0, hoursAgo = 24 * 20.0, known = true) }
         val hits = frequency(hard + easy, count = 10, trials = 100)
         val hardPicked = (1..10).sumOf { hits.getOrDefault(it, 0) }
         // hard words are ~9% of the pool but carry far more weight than mastered ones
@@ -471,9 +337,19 @@ class SessionSelectorTest {
 
     @Test
     fun sameSeedGivesTheSameSession() {
-        val pool = (1..60).map { practised(it, correct = it % 4, wrong = 1 + it % 2, hoursAgo = it.toLong()) }
+        val pool = (1..60).map { practised(it, correct = it % 4, wrong = 1 + it % 2, hoursAgo = it.toDouble()) }
         val a = SessionSelector.select(pool, 15, now, Random(99)).map { it.id }
         val b = SessionSelector.select(pool, 15, now, Random(99)).map { it.id }
         assertEquals(a, b)
+    }
+
+    @Test
+    fun summarizeCountsWhatTheLogLineReports() {
+        val recent = (1..6).map { practised(it, 1, 1, hoursAgo = 2.0) }
+        val old = (11..20).map { practised(it, 1, 1, hoursAgo = 300.0) }
+        val fresh = (21..24).map { word(it) }
+        val pool = recent + old + fresh
+        val s = SessionSelector.summarize(pool, recent.take(3) + old.take(2) + fresh.take(1), now)
+        assertEquals(SessionSelector.Summary(pool = 20, recentInPool = 6, recentTaken = 3, newTaken = 1, taken = 6), s)
     }
 }

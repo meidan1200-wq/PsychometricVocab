@@ -9,82 +9,70 @@ import kotlin.random.Random
 
 /**
  * Picks the words for one quiz/practice session. Pure Kotlin: the clock and the Random are
- * injected, so the whole thing is unit-tested deterministically.
+ * injected, so the whole thing is unit-tested and simulated deterministically.
  *
- * Why it exists: ~2000 words per track start out brand-new, and the old picker gave every new
- * word a weight of 2, so a session was mostly random new words and nothing got memorised. Here a
- * word the user practised recently comes back with HIGH probability, and that probability falls
- * as they answer it correctly; brand-new words are capped at 30% of a session and introduced
- * progressively (unit by unit) instead of scattered.
+ * The owner's model: ONE combined, continuous score per word, sampled by probability. No
+ * if/else tie-breaks between "kinds" of word (the earlier carry-over quota was exactly that and
+ * kept needing patches).
  *
- * Per practised word:
- *   a      = (correct + 1) / (correct + wrong + 2)            accuracy, smoothed
- *   m      = a, raised to at least 0.85 if isKnown            mastery
- *   recent = exp(-hoursSince(updatedAt) / 48)                 0 if updatedAt == 0
- *   weight = (0.1 + (1 - m)) * (1 + 6 * recent * (1 - m)) * (dueMultiplier if due else 1)
- * A word is "due" if it has been practised and nextReviewDate <= now.
- * Sampling is weighted, without replacement (Efraimidis-Spirakis: key = u^(1/w), top N).
+ *   weight = E * D * U * C
  *
- * The weights alone were too weak for the owner's real data: a unit can already hold ~80
- * wrong-not-yet-known words, and a recency factor of at most 2.5x can't make the words from the
- * quiz he just did win a draw against 80 of those (3 consecutive quizzes overlapped 0-2 words).
- * So a session is built in three steps:
- *   1. CARRY-OVER: up to 50% of the session is reserved for words practised in the last 48 h
- *      whose LAST answer was wrong (even if the word is known: see lastAnswerWrong) or that are
- *      not yet mastered (m < 0.9 and not known), drawn by weight
- *      (3 if last answer wrong) * max(1 - m, 0.15) * exp(-hours/3), so the LAST session's
- *      words dominate and recent misses come first. A word leaves carry-over by itself once it
- *      is answered right (and is known or at accuracy 0.9), so the chance of seeing it falls as
- *      the user answers it correctly. (Recency scales tried against a heavy user's day, where ~60 words practised
- *      20 h ago are still inside the window: exp(-h/48) can't tell "10 minutes ago" from "20
- *      hours ago" (1.0 vs 0.66) and gave ~1 word of overlap between consecutive quizzes, the
- *      IT finding; exp(-h/6) gave ~3.8; exp(-h/3) gives ~4.9 and never fewer than 3.)
- *   2. Then at most 30% brand-new words.
- *   3. Then the rest from the remaining practised words by the weights above.
+ *   E  exposure / recency (practised words): 1 + 300*exp(-h/6) + 2*exp(-h/96), h = hours since
+ *      the word was last answered. A very strong pull from the last session (the pool holds
+ *      hundreds of other words, so a pull of a few units never made a word come back: simulated
+ *      overlap with the previous session was 11-17%), a mild one from the last few days, and 1.0
+ *      (no pull) for words not seen for weeks. Persisted already (updatedAt), so it survives
+ *      restarts and syncs; no schema change.
+ *   D  difficulty from the success rate: a = (correct+1)/(correct+wrong+2), D = 0.15 + (1 - a),
+ *      times 1.5 if the LAST answer was wrong. isKnown never excludes such a word: in quiz mode
+ *      a wrong answer leaves isKnown = true, and those are exactly the words to bring back.
+ *   U  unit importance, ONLY in "all words"/Practice (master) mode, because lower units are
+ *      more likely on the real test: U = 1/(1 + 0.1*(unit-1)) (unit 1 = 1.0, unit 10 ~ 0.53).
+ *      A soft nudge, never a hard rule. In a single-unit quiz U = 1.
+ *   C  cooldown: a word answered RIGHT in its last two answers, the last one within 24 h,
+ *      is x0.3 so a word the user just nailed twice isn't served again right away.
+ *
+ * Sampling is weighted, without replacement (Efraimidis-Spirakis: key = u^(1/w), top N), with
+ * two balance rules on top so a session is "not too repetitive, still new words":
+ *   - 20-30% of a session are brand-new (never answered) words, introduced in unit order;
+ *   - at most 50% of a session comes from words answered in the last 48 h.
+ *
+ * All the constants live in [Config] so the simulation (SelectionSimulationTest) can show what
+ * they do; the defaults are the tuned values.
  */
 object SessionSelector {
-    /** At most this share of a session may be brand-new words (rounded up). */
-    const val NEW_WORD_FRACTION = 0.30
+    data class Config(
+        /** New words per session: between these shares of the session (rounded up). */
+        val newFractionMin: Double = 0.20,
+        val newFractionMax: Double = 0.30,
+        /** At most this share of a session may be words answered in the last 48 h (rounded up). */
+        val recentMaxFraction: Double = 0.50,
+        val recentWindowHours: Double = 48.0,
+        /** E = 1 + shortBoost*exp(-h/shortHours) + longBoost*exp(-h/longHours) */
+        val shortBoost: Double = 300.0,
+        val shortHours: Double = 6.0,
+        val longBoost: Double = 2.0,
+        val longHours: Double = 96.0,
+        /** D = floor + (1 - accuracy), x lastWrongFactor if the last answer was wrong. */
+        val difficultyFloor: Double = 0.15,
+        val lastWrongFactor: Double = 1.5,
+        /** U = 1 / (1 + unitSlope * (unit - 1)), master mode only. */
+        val unitSlope: Double = 0.1,
+        /** C = cooldownFactor for a word right twice in a row, the last answer within cooldownHours. */
+        val cooldownFactor: Double = 0.3,
+        val cooldownHours: Double = 24.0
+    )
 
-    /** Up to this share of a session is reserved for carry-over words (rounded up). */
-    const val CARRY_OVER_FRACTION = 0.50
-
-    /** A word stops being carry-over once its mastery reaches this (or it becomes known). */
-    const val CARRY_OVER_MASTERY_LIMIT = 0.9
-    private const val CARRY_OVER_WINDOW_HOURS = 48.0
-
-    /**
-     * Carry-over weight decays with this time constant: 10 min ~0.95, 3 h ~0.37, 6 h ~0.14,
-     * 24 h ~0.0003. Short on purpose: the previous session's words must dominate the quota
-     * even when a day of older unmastered words is still inside the 48 h window.
-     */
-    private const val CARRY_OVER_RECENCY_HOURS = 3.0
-
-    /** How strongly recency lifts the weight of a not-yet-mastered word. */
-    private const val RECENCY_BOOST = 6.0
-    private const val RECENCY_HALF_SCALE_HOURS = 48.0
     private const val MS_PER_HOUR = 3_600_000.0
-
-    /** Weight multiplier for a due word: quizzes/shortcuts use 2 (= 1 + due), Practice favours due words more. */
-    const val DUE_MULTIPLIER_QUIZ = 2.0
-    const val DUE_MULTIPLIER_PRACTICE = 3.0
 
     /** Never answered, never marked known, no score: still a brand-new word. */
     fun isNew(w: Word): Boolean =
         w.correctCount == 0 && w.wrongCount == 0 && !w.isKnown && w.srsScore == 0f
 
-    fun mastery(w: Word): Double {
-        val a = (w.correctCount + 1.0) / (w.correctCount + w.wrongCount + 2.0)
-        return if (w.isKnown) max(a, 0.85) else a
-    }
+    /** Smoothed success rate in (0, 1): (correct + 1) / (correct + wrong + 2). */
+    fun accuracy(w: Word): Double = (w.correctCount + 1.0) / (w.correctCount + w.wrongCount + 2.0)
 
-    fun recency(w: Word, now: Long): Double {
-        if (w.updatedAt <= 0L) return 0.0
-        val hours = max(0L, now - w.updatedAt) / MS_PER_HOUR
-        return exp(-hours / RECENCY_HALF_SCALE_HOURS)
-    }
-
-    fun isDue(w: Word, now: Long): Boolean = !isNew(w) && w.nextReviewDate <= now
+    fun hoursSince(w: Word, now: Long): Double = max(0L, now - w.updatedAt) / MS_PER_HOUR
 
     /**
      * True if the user's LAST answer to this word was wrong. There is no "last answer" column (and
@@ -95,49 +83,68 @@ object SessionSelector {
      * that predates the v5 timestamp (we can't date it). SessionSelectorTest ties this to
      * SrsEngine.processAnswer, so a future change there breaks that test instead of silently
      * breaking this.
-     *
-     * Why it matters: in QUIZ mode a wrong answer leaves isKnown = true, and the words the owner
-     * gets wrong are mostly known words with long correct histories (accuracy >= 0.9). Filtering
-     * carry-over on "not known / not mastered" threw out exactly the words he wants back.
      */
     fun lastAnswerWrong(w: Word): Boolean =
         w.updatedAt > 0L && w.interval == 1 && (w.correctCount + w.wrongCount) > 0
 
     /**
-     * Practised in the last 48 h, and either the last answer was wrong (even for a known word) or
-     * it is not yet mastered (not known and m < 0.9): the words to keep bringing back.
+     * True if the last TWO answers were right (interval >= 7: 1 -> 6 after the first right answer,
+     * then x ease after the second) and the last one was within [Config.cooldownHours]. The exact
+     * "within 24 h" of the earlier answer isn't stored, so only the latest answer's age is checked.
      */
-    fun isCarryOver(w: Word, now: Long): Boolean {
-        if (isNew(w) || w.updatedAt <= 0L) return false
-        if ((now - w.updatedAt) / MS_PER_HOUR > CARRY_OVER_WINDOW_HOURS) return false
-        return lastAnswerWrong(w) || (!w.isKnown && mastery(w) < CARRY_OVER_MASTERY_LIMIT)
+    fun answeredRightTwiceRecently(w: Word, now: Long, config: Config = Config()): Boolean =
+        w.updatedAt > 0L && w.interval >= 7 && hoursSince(w, now) <= config.cooldownHours
+
+    /** E: exposure / recency. 1.0 for a word with no timestamp (nothing to date it by). */
+    fun exposure(w: Word, now: Long, config: Config = Config()): Double {
+        if (w.updatedAt <= 0L) return 1.0
+        val h = hoursSince(w, now)
+        return 1.0 + config.shortBoost * exp(-h / config.shortHours) + config.longBoost * exp(-h / config.longHours)
     }
 
-    /**
-     * Carry-over draw weight: (3 if the last answer was wrong, else 1) * max(1 - m, 0.15) *
-     * exp(-hours/3). The 0.15 floor keeps a just-missed word with a long good history (m >= 0.85)
-     * in the running; > 0 for any carry-over candidate.
-     */
-    fun carryOverWeight(w: Word, now: Long): Double {
-        val hours = max(0L, now - w.updatedAt) / MS_PER_HOUR
-        val missed = if (lastAnswerWrong(w)) 3.0 else 1.0
-        return missed * max(1.0 - mastery(w), 0.15) * exp(-hours / CARRY_OVER_RECENCY_HOURS)
+    /** D: difficulty from the success rate, raised if the last answer was wrong. */
+    fun difficulty(w: Word, config: Config = Config()): Double {
+        val d = config.difficultyFloor + (1.0 - accuracy(w))
+        return if (lastAnswerWrong(w)) d * config.lastWrongFactor else d
     }
 
-    /** The sampling weight of a PRACTISED word (always > 0). */
-    fun weight(w: Word, now: Long, dueMultiplier: Double = DUE_MULTIPLIER_QUIZ): Double {
-        val m = mastery(w)
-        val recent = recency(w, now)
-        val due = if (isDue(w, now)) dueMultiplier else 1.0
-        return (0.1 + (1.0 - m)) * (1.0 + RECENCY_BOOST * recent * (1.0 - m)) * due
+    /** U: unit importance. 1.0 outside master mode. */
+    fun unitImportance(w: Word, masterMode: Boolean, config: Config = Config()): Double =
+        if (masterMode) 1.0 / (1.0 + config.unitSlope * (w.unit - 1)) else 1.0
+
+    /** The combined sampling weight of a PRACTISED word (always > 0). */
+    fun weight(w: Word, now: Long, masterMode: Boolean = false, config: Config = Config()): Double {
+        val cooldown = if (answeredRightTwiceRecently(w, now, config)) config.cooldownFactor else 1.0
+        return exposure(w, now, config) * difficulty(w, config) * unitImportance(w, masterMode, config) * cooldown
     }
+
+    /** "רק מילים שלא ידעתי": not known yet, or known but just answered wrong. */
+    fun unknownOnlyPool(words: List<Word>): List<Word> = words.filter { !it.isKnown || lastAnswerWrong(it) }
+
+    fun isRecent(w: Word, now: Long, config: Config = Config()): Boolean =
+        !isNew(w) && w.updatedAt > 0L && hoursSince(w, now) <= config.recentWindowHours
+
+    /** What a selection looked like, for the on-device log line. */
+    data class Summary(
+        val pool: Int, val recentInPool: Int, val recentTaken: Int, val newTaken: Int, val taken: Int
+    )
+
+    fun summarize(pool: List<Word>, selected: List<Word>, now: Long, config: Config = Config()): Summary =
+        Summary(
+            pool = pool.size,
+            recentInPool = pool.count { isRecent(it, now, config) },
+            recentTaken = selected.count { isRecent(it, now, config) },
+            newTaken = selected.count { isNew(it) },
+            taken = selected.size
+        )
 
     fun select(
         words: List<Word>,
         count: Int,
         now: Long,
         random: Random,
-        dueMultiplier: Double = DUE_MULTIPLIER_QUIZ
+        masterMode: Boolean = false,
+        config: Config = Config()
     ): List<Word> {
         if (count <= 0 || words.isEmpty()) return emptyList()
         // A pool no bigger than the session: everything, once, in random order.
@@ -146,49 +153,74 @@ object SessionSelector {
         val fresh = words.filter { isNew(it) }
         val practised = words.filter { !isNew(it) }
 
-        // 1. carry-over quota, by weight (1 - m) * exp(-hours/3) (> 0 for a candidate)
-        val carryCandidates = practised.filter { isCarryOver(it, now) }
-        val carryQuota = min(ceil(count * CARRY_OVER_FRACTION).toInt(), carryCandidates.size)
-        val carry = sampleBy(carryCandidates, carryQuota, random) { carryOverWeight(it, now) }
-        val carryIds = carry.map { it.id }.toHashSet()
+        // 20-30% brand-new words (a random share in that range per session), topped up with
+        // more new words only if there aren't enough practised ones.
+        val newMin = ceil(count * config.newFractionMin).toInt()
+        val newMax = max(newMin, ceil(count * config.newFractionMax).toInt())
+        var newQuota = min(fresh.size, newMin + random.nextInt(newMax - newMin + 1))
+        val practisedQuota = min(practised.size, count - newQuota)
+        newQuota = min(fresh.size, count - practisedQuota)
 
-        // 2. at most 30% brand-new words; 3. the rest from the remaining practised words
-        val remaining = count - carry.size
-        val maxNew = ceil(count * NEW_WORD_FRACTION).toInt()
-        var newQuota = min(min(maxNew, fresh.size), remaining)
-        val restPool = practised.filter { it.id !in carryIds }
-        val restQuota = min(restPool.size, remaining - newQuota)
-        // Not enough practised words to fill the rest: top up with more new ones.
-        newQuota = min(fresh.size, remaining - restQuota)
-
-        val rest = sampleBy(restPool, restQuota, random) { weight(it, now, dueMultiplier) }
-        val chosen = carry + rest + pickNewInOrder(fresh, newQuota, random)
-        // Shuffle so the new words and the carry-over aren't in a fixed order.
-        return chosen.shuffled(random)
+        val fromPractised = sampleCapped(practised, practisedQuota, count, now, random, masterMode, config)
+        val fromNew = pickNew(fresh, newQuota, random, masterMode, config)
+        // Shuffle so the new words aren't always the last questions.
+        return (fromPractised + fromNew).shuffled(random)
     }
 
-    /** Weighted sampling without replacement (Efraimidis-Spirakis), top [n] keys. */
-    private fun sampleBy(pool: List<Word>, n: Int, random: Random, weightOf: (Word) -> Double): List<Word> {
+    /**
+     * Weighted sampling without replacement (Efraimidis-Spirakis), keeping at most
+     * ceil(50% of the whole session) words answered in the last 48 h; if the pool has too few other
+     * words to fill the session, the cap gives way rather than returning a short session.
+     */
+    private fun sampleCapped(
+        pool: List<Word>, n: Int, sessionSize: Int, now: Long, random: Random, masterMode: Boolean, config: Config
+    ): List<Word> {
         if (n <= 0) return emptyList()
-        return pool
+        val ranked = pool
             .map { w ->
                 // key = u^(1/weight); ln(u)/weight orders identically and doesn't underflow.
                 val u = max(random.nextDouble(), 1e-12)
-                w to ln(u) / weightOf(w)
+                w to ln(u) / weight(w, now, masterMode, config)
             }
             .sortedByDescending { it.second }
-            .take(n)
             .map { it.first }
+
+        val cap = ceil(sessionSize * config.recentMaxFraction).toInt()
+        val picked = ArrayList<Word>(n)
+        val skipped = ArrayList<Word>()
+        var recent = 0
+        for (w in ranked) {
+            if (picked.size >= n) break
+            if (isRecent(w, now, config)) {
+                if (recent >= cap) { skipped.add(w); continue }
+                recent++
+            }
+            picked.add(w)
+        }
+        for (w in skipped) { // not enough non-recent words: relax the cap
+            if (picked.size >= n) break
+            picked.add(w)
+        }
+        return picked
     }
 
     /**
      * New words come in asset/unit order with only light randomness: choose [n] from a window of
      * the first ~3n new words (sorted by unit, then id), so a unit's new words are introduced
-     * progressively rather than scattered across the whole track.
+     * progressively rather than scattered across the whole track. In master mode the choice
+     * inside that window is also weighted by unit importance.
      */
-    private fun pickNewInOrder(fresh: List<Word>, n: Int, random: Random): List<Word> {
+    private fun pickNew(
+        fresh: List<Word>, n: Int, random: Random, masterMode: Boolean, config: Config
+    ): List<Word> {
         if (n <= 0) return emptyList()
         val ordered = fresh.sortedWith(compareBy<Word>({ it.unit }, { it.id }))
-        return ordered.take(max(n, min(ordered.size, n * 3))).shuffled(random).take(n)
+        val window = ordered.take(max(n, min(ordered.size, n * 3)))
+        if (!masterMode) return window.shuffled(random).take(n)
+        return window
+            .map { w -> w to ln(max(random.nextDouble(), 1e-12)) / unitImportance(w, true, config) }
+            .sortedByDescending { it.second }
+            .take(n)
+            .map { it.first }
     }
 }
