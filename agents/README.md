@@ -1,6 +1,6 @@
 # Agent Team — PsychometricVocab
 
-The owner (meidan1200-wq) runs this project with a team of Claude agents. Every agent reads this file first, then its own role file.
+The owner (meidan1200-wq) runs this project with a team of Claude agents. Every agent reads `CLAUDE.md` (the team rules, auto-loaded), this file, then its own role file.
 
 | Role | Runs where | Does | File |
 |---|---|---|---|
@@ -42,5 +42,5 @@ QA (freelance) pushes the fix to `qa/<topic>` → IT tests only the fix → the 
 - **Local ↔ local:** `SendMessage` to the session ID (or the name from `ListAgents`).
 - **To Cloud QA:** `SendMessage`, when it shows up in `ListAgents` (only while awake). Otherwise, the owner starts it.
 - **From Cloud QA:** it pushes with an entry at the top of [HANDOFF.md](HANDOFF.md). It can't message.
-- Report **once, when finished**: what was verified, and what wasn't. No progress pings or acknowledgements.
+- Report **once, when finished**: what was verified, and what wasn't. No progress pings or acknowledgements. Chat replies are `.`; the Manager writes one summary to the owner, in its own chat, when everyone has finished.
 - Durable knowledge lives in `agents/` (roles, [TASKS.md](TASKS.md), [DECISIONS.md](DECISIONS.md), `reports/`) and `docs/`.

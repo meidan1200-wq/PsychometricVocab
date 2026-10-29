@@ -5,6 +5,9 @@ Important decisions, newest on top. Format: `## YYYY-MM-DD — decision` then wh
 ## 2026-09-24 — The Manager does the final merge and every version
 QA no longer pushes to the working branch. It pushes to the feature branch it's reviewing, or to `qa/<topic>`. The Developer pushes to `feature/<name>`. The Manager gives the final verdict, merges into `claude/charming-planck-v3dszd`, and creates every version and release (releases need the owner's approval). Decided by the owner.
 
+## 2026-10-29 — Team rules in CLAUDE.md; MAFAM manager no longer a channel
+A root `CLAUDE.md` (auto-loaded by every session) holds the team rules: silent work, `.` replies even at wrap-up, one report by message to the Manager, and the Manager silent (`.`) until everyone has finished, then one summary to the owner in the Manager's own chat. The MAFAM manager is no longer the owner's channel until he says otherwise. Decided by the owner.
+
 ## 2026-10-29 — Word-selection model (owner's design, the Manager's math)
 One continuous score per word: weight = E (exposure/recency from previous sessions, persisted) × D (difficulty from the smoothed success rate; recent misses ×1.5) × U (unit importance, only in all-words/Practice: unit 1 highest, a soft decline to ~0.5 at unit 10). Sampled by probability, with no if/else tie-breaks. Balance: 20–30% new words, ≤50% from the last 48h, and a cooldown for words answered right twice within 24h. Validated by a 30-day simulated-learner test with metric bands (overlap 30–60%, new 2–3/10, rising accuracy, unit-1 ≥1.5× unit-10 in master mode). Decided by the owner.
 

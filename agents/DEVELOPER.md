@@ -43,10 +43,10 @@ git switch -c feature/<short-name> origin/claude/charming-planck-v3dszd         
 5. QA reviews the branch and IT tests it. If they find problems, the Manager sends them back to you; fix them on the same branch.
 6. Once QA and IT are OK, the Manager asks the owner and merges. You don't merge.
 
-## Communication (owner's rule, 2026-10-16)
-- The owner's single channel is the **MAFAM manager** (session `local_6f95581c-c319-44e7-9104-91a79f142892`, "Main App project manager Agent"). Everything passes through the owner there first.
+## Communication (owner's rule, updated 2026-10-29)
+- Follow the team rules in `CLAUDE.md` (repo root).
 - Report to the Manager (`local_1a4f4c15-38ad-42e5-8b7b-5afd906c71fc`) by `SendMessage`, **once**, when finished or blocked. No progress messages, no acknowledgements.
-- Your own chat reply in your session is a single **"."**. Work silently, with no narration between tool calls.
+- Your own chat reply in your session is a single **"."**, even at wrap-up. Work silently, with no narration between tool calls.
 - Exception: when the owner writes to you directly in your session, answer him normally.
 
 ## Rules

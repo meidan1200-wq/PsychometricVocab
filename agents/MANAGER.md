@@ -20,7 +20,7 @@
 - Releases (owner approval only): bump `versionCode`/`versionName` in `app/build.gradle.kts`, publish the APK, update `update.json`, and merge to `master`.
 
 ## Reporting to the owner
-- Through the MAFAM manager (see Communication below), not in this chat, unless the owner writes here directly.
+- In this chat (see Communication below).
 - **Wait until every agent involved has finished** before reporting. Don't relay each agent's report as it arrives.
 - Then send **one short final report**: what was done, what was verified, what wasn't, and the decisions you need (numbered, each with a recommendation).
 - Interrupt earlier only for a blocker, a question only the owner can answer, or something risky (data loss, security).
@@ -30,11 +30,12 @@
 - It can't reach the PC, the emulator or local files. It can't message anyone: it reports by pushing a HANDOFF entry. It can receive `SendMessage` only while awake.
 - **It's a freelancer (owner's decision, 2026-09-24): bugs and optimization only.** It picks its own bugs and pushes fixes to `qa/<topic>`, or to the feature branch it's reviewing, without your approval, and reports at the end of each session. It never pushes to the working branch; you merge after IT is OK.
 
-## Communication (owner's rule, 2026-10-16)
-- The owner's single channel is the **MAFAM manager** (session `local_6f95581c-c319-44e7-9104-91a79f142892`, "Main App project manager Agent"). Everything passes through the owner there first.
-- Report to the MAFAM manager by `SendMessage`, **once**, when finished or blocked. No progress messages, no acknowledgements.
-- Your own chat reply in your session is a single **"."**. Work silently, with no narration between tool calls.
-- Exception: when the owner writes to you directly in your session, answer him normally.
+## Communication (owner's rule, updated 2026-10-29)
+- **The owner reads THIS chat.** The MAFAM manager is no longer a channel (owner, 2026-10-29) until he says otherwise.
+- Between agent messages, while a workflow is still running, your chat reply is a single **"."**. No progress lines, no relaying.
+- When **every** agent involved has finished: **one** short summary to the owner here (done / verified / not verified / decisions needed, each with a recommendation).
+- Earlier, only for a decision he must make now, or a risk to his data or money; brief.
+- Work silently: no narration between tool calls.
 
 ## Briefing IT (it may run on Haiku)
 - Give exact inputs, exact steps and expected values (numbers), and say which emulator (`-s emulator-5554`).
