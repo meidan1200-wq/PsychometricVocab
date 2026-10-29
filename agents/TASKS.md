@@ -34,3 +34,4 @@ Owned by the Manager. Format: `- [ ] task — owner — status`.
 - [ ] Known limit: with 8+ sessions a day, one word can be asked up to ~7x a day — later
 - [x] Quiz card shadow clipped in transitions + content centred; first-launch startup work moved off the main thread — fix/quiz-card-shadow merged (IT: 0 ANR in 3 cold launches, Displayed 2.4–3.8s)
 - [x] v1.1.9 released 2026-10-29 (master a80d11f): card shadow + question-transition fixes, faster startup, word position kept at the start edge
+- [ ] Future (owner idea, not approved yet): consider gentle easing/animation between quiz questions for eye comfort, e.g. a smooth card height change for long vs short words. Prototype for the owner to try before building
