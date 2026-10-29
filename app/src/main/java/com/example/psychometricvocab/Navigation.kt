@@ -6,6 +6,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.navigation3.runtime.rememberNavBackStack
+import com.example.psychometricvocab.data.StartupTrace
 import com.example.psychometricvocab.ui.components.VocabBottomNav
 import com.example.psychometricvocab.ui.flashcard.FlashcardScreen
 import com.example.psychometricvocab.ui.home.HomeScreen
@@ -63,27 +64,22 @@ fun MainScaffold(appState: AppState, accountVm: com.example.psychometricvocab.ui
     var progressExpandUnit by rememberSaveable { mutableStateOf<Int?>(null) }
 
     val profile by accountVm.profile.collectAsStateWithLifecycle()
-    var showRegistration by remember { mutableStateOf(false) }
+    // The stored profile is read in the background (it sits in encrypted storage, which is slow to
+    // open on a cold first launch). Until it is in, show neither the app nor the registration
+    // screen: the empty default profile must not be mistaken for "no account yet".
+    val profileLoaded by accountVm.loaded.collectAsStateWithLifecycle()
+    val showRegistration = profileLoaded && profile.fullName.isEmpty() && !profile.isGuest
 
-    LaunchedEffect(profile) {
-        if (profile.fullName.isEmpty() && !profile.isGuest) {
-            showRegistration = true
-        } else {
-            showRegistration = false
-        }
-    }
+    LaunchedEffect(Unit) { StartupTrace.mark("MainScaffold first composition") }
+    LaunchedEffect(profileLoaded) { if (profileLoaded) StartupTrace.mark("profile loaded, first real screen") }
 
-    if (showRegistration) {
+    if (!profileLoaded) {
+        Box(modifier = Modifier.fillMaxSize())
+    } else if (showRegistration) {
         com.example.psychometricvocab.ui.account.AuthScreen(
-            onCreateAccount = { name, email ->
-                val profile = com.example.psychometricvocab.data.AccountProfile(fullName = name, email = email)
-                accountVm.saveProfile(name, email, "")
-                showRegistration = false
-            },
-            onContinueAsGuest = {
-                accountVm.setGuestMode(true)
-                showRegistration = false
-            }
+            // Saving the profile / choosing guest changes `profile`, which hides this screen.
+            onCreateAccount = { name, email -> accountVm.saveProfile(name, email, "") },
+            onContinueAsGuest = { accountVm.setGuestMode(true) }
         )
     } else {
         // System Back mirrors the in-app ← arrow: close the sub-screen, else return to Home.

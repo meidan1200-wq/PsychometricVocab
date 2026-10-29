@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.util.Log
 import com.example.psychometricvocab.data.ActivityLog
+import com.example.psychometricvocab.data.StartupTrace
 import com.example.psychometricvocab.data.VocabDatabase
 import com.example.psychometricvocab.data.WordDao
 import kotlinx.coroutines.CoroutineScope
@@ -29,7 +30,11 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class SyncCoordinator private constructor(context: Context) {
     private val appContext = context.applicationContext
-    val cloud: CloudSync = FirebaseCloudSync.createOrUnavailable(appContext)
+    // Creating the Firebase Auth and Firestore handles is slow on a cold first launch; MainActivity
+    // builds this coordinator on a background thread at start-up so the first screen never waits.
+    val cloud: CloudSync = StartupTrace.time("Firebase Auth + Firestore create") {
+        FirebaseCloudSync.createOrUnavailable(appContext)
+    }
 
     private val dao: WordDao get() = VocabDatabase.getInstance(appContext).wordDao()
     private val activityLog = ActivityLog(appContext)

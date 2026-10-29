@@ -148,26 +148,33 @@ fun QuizScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 )
 
-                                // Word display card
-                                AnimatedContent(
-                                    targetState = currentQuestion,
-                                    transitionSpec = {
-                                        fadeIn(tween(300)) togetherWith fadeOut(tween(300))
-                                    },
-                                    label = "quizWord"
-                                ) { q ->
-                                    Card(
-                                        shape = RoundedCornerShape(20.dp),
-                                        colors = CardDefaults.cardColors(containerColor = White),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .shadow(6.dp, RoundedCornerShape(20.dp))
-                                    ) {
+                                // Word display card. The card and its shadow stay put and only what is
+                                // inside cross-fades: AnimatedContent clips to its bounds, so with the
+                                // shadowed Card inside it the shadow was cut off at the sides and
+                                // doubled while two cards faded. Keyed on the word, not the question,
+                                // so answering (which only flips `answered`) doesn't re-run it, and
+                                // its default size animation makes the card follow a height change.
+                                Card(
+                                    shape = RoundedCornerShape(20.dp),
+                                    colors = CardDefaults.cardColors(containerColor = White),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .shadow(6.dp, RoundedCornerShape(20.dp))
+                                ) {
+                                    AnimatedContent(
+                                        targetState = currentQuestion.word,
+                                        transitionSpec = {
+                                            fadeIn(tween(300)) togetherWith fadeOut(tween(300))
+                                        },
+                                        label = "quizWord"
+                                    ) { shownWord ->
                                         Column(
-                                            modifier = Modifier.padding(16.dp),
+                                            // Full width, so the speaker, word, underline and hint are
+                                            // centred in the card (a wrapping Column sat at the start side).
+                                            modifier = Modifier.fillMaxWidth().padding(16.dp),
                                             horizontalAlignment = Alignment.CenterHorizontally
                                         ) {
-                                            val displayWord = q.word.cleanWord
+                                            val displayWord = shownWord.cleanWord
                                             Box(
                                                 modifier = Modifier
                                                     .size(40.dp)

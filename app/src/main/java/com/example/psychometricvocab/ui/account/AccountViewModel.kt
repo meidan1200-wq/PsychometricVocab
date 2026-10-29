@@ -15,12 +15,21 @@ import kotlinx.coroutines.launch
 
 class AccountViewModel(app: Application) : AndroidViewModel(app) {
     private val accountManager = AccountManager(app)
-    private val database = VocabDatabase.getInstance(app)
-    private val quizPrefs = QuizPreferences(app)
-    private val appPrefs = AppPreferences(app)
-    private val activityLog = ActivityLog(app)
+    // Only needed by removeAccount(); opening them in the constructor put the database check and
+    // three SharedPreferences reads on the main thread at startup.
+    private val database by lazy { VocabDatabase.getInstance(app) }
+    private val quizPrefs by lazy { QuizPreferences(app) }
+    private val appPrefs by lazy { AppPreferences(app) }
+    private val activityLog by lazy { ActivityLog(app) }
 
     val profile: StateFlow<AccountProfile> = accountManager.profile
+
+    /** False until the stored profile has been read in the background (see AccountManager.load). */
+    val loaded: StateFlow<Boolean> = accountManager.loaded
+
+    init {
+        viewModelScope.launch { accountManager.load() }
+    }
 
     fun saveProfile(fullName: String, email: String, imageUri: String) {
         accountManager.saveProfile(
