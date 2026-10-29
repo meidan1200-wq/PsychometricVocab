@@ -148,12 +148,11 @@ fun QuizScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 )
 
-                                // Word display card. The card and its shadow stay put and only what is
-                                // inside cross-fades: AnimatedContent clips to its bounds, so with the
-                                // shadowed Card inside it the shadow was cut off at the sides and
-                                // doubled while two cards faded. Keyed on the word, not the question,
-                                // so answering (which only flips `answered`) doesn't re-run it, and
-                                // its default size animation makes the card follow a height change.
+                                // Word display card. The card and its shadow are static (a shadow
+                                // inside AnimatedContent was clipped to its bounds and doubled while
+                                // two cards faded), and the word changes with NO animation, in the same
+                                // frame as the options below: any exit or enter transition keeps the old
+                                // word on screen next to the new options for at least a frame.
                                 Card(
                                     shape = RoundedCornerShape(20.dp),
                                     colors = CardDefaults.cardColors(containerColor = White),
@@ -161,149 +160,147 @@ fun QuizScreen(
                                         .fillMaxWidth()
                                         .shadow(6.dp, RoundedCornerShape(20.dp))
                                 ) {
-                                    AnimatedContent(
-                                        targetState = currentQuestion.word,
-                                        transitionSpec = {
-                                            fadeIn(tween(300)) togetherWith fadeOut(tween(300))
-                                        },
-                                        label = "quizWord"
-                                    ) { shownWord ->
-                                        Column(
-                                            // Full width, so the speaker, word, underline and hint are
-                                            // centred in the card (a wrapping Column sat at the start side).
-                                            modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally
+                                    Column(
+                                        // Full width, so the speaker, word, underline and hint are
+                                        // centred in the card (a wrapping Column sat at the start side).
+                                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        val displayWord = currentQuestion.word.cleanWord
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .clip(CircleShape)
+                                                .background(Yellow.copy(alpha = 0.2f))
+                                                .clickable {
+                                                    val locale = if (appState.track == "hebrew") Locale("he", "IL") else Locale.ENGLISH
+                                                    val result = tts.setLanguage(locale)
+                                                    if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                                                        val langName = if (appState.track == "hebrew") "Hebrew" else "English"
+                                                        android.widget.Toast.makeText(context, "Please install $langName Text-To-Speech in device settings.", android.widget.Toast.LENGTH_LONG).show()
+                                                    } else {
+                                                        tts.speak(displayWord, TextToSpeech.QUEUE_FLUSH, null, null)
+                                                    }
+                                                },
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            val displayWord = shownWord.cleanWord
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(40.dp)
-                                                    .clip(CircleShape)
-                                                    .background(Yellow.copy(alpha = 0.2f))
-                                                    .clickable {
-                                                        val locale = if (appState.track == "hebrew") Locale("he", "IL") else Locale.ENGLISH
-                                                        val result = tts.setLanguage(locale)
-                                                        if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                                                            val langName = if (appState.track == "hebrew") "Hebrew" else "English"
-                                                            android.widget.Toast.makeText(context, "Please install $langName Text-To-Speech in device settings.", android.widget.Toast.LENGTH_LONG).show()
-                                                        } else {
-                                                            tts.speak(displayWord, TextToSpeech.QUEUE_FLUSH, null, null)
-                                                        }
-                                                    },
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "Speak", tint = YellowDark)
-                                            }
-                                            Spacer(Modifier.height(12.dp))
-                                            Text(
-                                                text = displayWord,
-                                                style = MaterialTheme.typography.displayMedium,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                textAlign = TextAlign.Center,
-                                                color = TextPrimary
-                                            )
-                                            Box(
-                                                modifier = Modifier
-                                                    .padding(top = 6.dp)
-                                                    .width(80.dp)
-                                                    .height(4.dp)
-                                                    .clip(RoundedCornerShape(2.dp))
-                                                    .background(Yellow)
-                                            )
-                                            Text(
-                                                text = if (isHebrew) "בחר את התרגום הנכון" else "Choose the correct translation",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = TextSecondary,
-                                                modifier = Modifier.padding(top = 8.dp),
-                                                textAlign = TextAlign.Center
-                                            )
+                                            Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "Speak", tint = YellowDark)
                                         }
+                                        Spacer(Modifier.height(12.dp))
+                                        Text(
+                                            text = displayWord,
+                                            style = MaterialTheme.typography.displayMedium,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            textAlign = TextAlign.Center,
+                                            color = TextPrimary
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .padding(top = 6.dp)
+                                                .width(80.dp)
+                                                .height(4.dp)
+                                                .clip(RoundedCornerShape(2.dp))
+                                                .background(Yellow)
+                                        )
+                                        Text(
+                                            text = if (isHebrew) "בחר את התרגום הנכון" else "Choose the correct translation",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = TextSecondary,
+                                            modifier = Modifier.padding(top = 8.dp),
+                                            textAlign = TextAlign.Center
+                                        )
                                     }
                                 }
 
                                 // Answer options — use quizOpt to avoid shadowing issues
                                 currentQuestion.options.forEach { quizOpt ->
-                                    val isAnswered = currentQuestion.answered
-                                    // selectedOptionId defaults to -1, which is also the "no idea" option's id,
-                                    // so only trust it once the question is answered.
-                                    val optIsSelected = isAnswered && currentQuestion.selectedOptionId == quizOpt.wordId
-                                    val optIsCorrect = quizOpt.isCorrect
+                                    // Keyed per question: without it the row at the same position in the
+                                    // NEXT question reuses the previous row's state, and RadioButton's own
+                                    // animations (dot, colours) and the correct-answer pulse start from the
+                                    // previous answer instead of from rest.
+                                    key(currentIndex, quizOpt.wordId) {
+                                        val isAnswered = currentQuestion.answered
+                                        // selectedOptionId defaults to -1, which is also the "no idea" option's id,
+                                        // so only trust it once the question is answered.
+                                        val optIsSelected = isAnswered && currentQuestion.selectedOptionId == quizOpt.wordId
+                                        val optIsCorrect = quizOpt.isCorrect
 
-                                    // Auto pass + wrong answer: blink the correct option a few
-                                    // times during the (longer) wait before advancing, so it's
-                                    // obvious which one was right.
-                                    val shouldPulseCorrect = autoPassEnabled && isAnswered && optIsCorrect && answeredWrong
-                                    val pulseBg = if (shouldPulseCorrect) {
-                                        val transition = rememberInfiniteTransition(label = "correctPulse")
-                                        transition.animateColor(
-                                            initialValue = CorrectGreenLight,
-                                            targetValue = CorrectGreen,
-                                            animationSpec = infiniteRepeatable(tween(450), RepeatMode.Reverse),
-                                            label = "correctPulseColor"
-                                        ).value
-                                    } else null
+                                        // Auto pass + wrong answer: blink the correct option a few
+                                        // times during the (longer) wait before advancing, so it's
+                                        // obvious which one was right.
+                                        val shouldPulseCorrect = autoPassEnabled && isAnswered && optIsCorrect && answeredWrong
+                                        val pulseBg = if (shouldPulseCorrect) {
+                                            val transition = rememberInfiniteTransition(label = "correctPulse")
+                                            transition.animateColor(
+                                                initialValue = CorrectGreenLight,
+                                                targetValue = CorrectGreen,
+                                                animationSpec = infiniteRepeatable(tween(450), RepeatMode.Reverse),
+                                                label = "correctPulseColor"
+                                            ).value
+                                        } else null
 
-                                    val bgColor = when {
-                                        isAnswered && optIsCorrect -> pulseBg ?: CorrectGreenLight
-                                        isAnswered && optIsSelected && !optIsCorrect -> WrongRedLight
-                                        optIsSelected -> Yellow.copy(alpha = 0.15f)
-                                        else -> White
-                                    }
-                                    val borderColor = when {
-                                        isAnswered && optIsCorrect -> CorrectGreen
-                                        isAnswered && optIsSelected && !optIsCorrect -> WrongRed
-                                        optIsSelected -> Yellow
-                                        else -> DividerGray
-                                    }
+                                        val bgColor = when {
+                                            isAnswered && optIsCorrect -> pulseBg ?: CorrectGreenLight
+                                            isAnswered && optIsSelected && !optIsCorrect -> WrongRedLight
+                                            optIsSelected -> Yellow.copy(alpha = 0.15f)
+                                            else -> White
+                                        }
+                                        val borderColor = when {
+                                            isAnswered && optIsCorrect -> CorrectGreen
+                                            isAnswered && optIsSelected && !optIsCorrect -> WrongRed
+                                            optIsSelected -> Yellow
+                                            else -> DividerGray
+                                        }
 
-                                    Card(
-                                        shape = RoundedCornerShape(14.dp),
-                                        colors = CardDefaults.cardColors(containerColor = bgColor),
-                                        border = BorderStroke(1.5.dp, borderColor),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable(enabled = !isAnswered) {
-                                                vm.onAnswer(currentIndex, quizOpt.wordId, quizOpt.isCorrect)
-                                            }
-                                    ) {
-                                        CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Rtl) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.SpaceBetween
-                                            ) {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                                    modifier = Modifier.weight(1f)
-                                                ) {
-                                                    RadioButton(
-                                                        selected = optIsSelected,
-                                                        onClick = null,
-                                                        colors = RadioButtonDefaults.colors(
-                                                            selectedColor = if (isAnswered && !optIsCorrect) WrongRed else Yellow,
-                                                            unselectedColor = DividerGray
-                                                        )
-                                                    )
-                                                    Text(
-                                                        text = android.text.Html.fromHtml(quizOpt.text, android.text.Html.FROM_HTML_MODE_LEGACY).toString(),
-                                                        style = MaterialTheme.typography.bodyLarge,
-                                                        fontWeight = if (optIsSelected) FontWeight.Bold else FontWeight.Normal,
-                                                        color = TextPrimary
-                                                    )
+                                        Card(
+                                            shape = RoundedCornerShape(14.dp),
+                                            colors = CardDefaults.cardColors(containerColor = bgColor),
+                                            border = BorderStroke(1.5.dp, borderColor),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable(enabled = !isAnswered) {
+                                                    vm.onAnswer(currentIndex, quizOpt.wordId, quizOpt.isCorrect)
                                                 }
-                                                if (isAnswered && optIsCorrect) {
-                                                    Icon(
-                                                        Icons.Filled.Check, null,
-                                                        tint = CorrectGreen,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
-                                                } else if (isAnswered && optIsSelected && !optIsCorrect) {
-                                                    Icon(
-                                                        Icons.Filled.Close, null,
-                                                        tint = WrongRed,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
+                                        ) {
+                                            CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Rtl) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        RadioButton(
+                                                            selected = optIsSelected,
+                                                            onClick = null,
+                                                            colors = RadioButtonDefaults.colors(
+                                                                selectedColor = if (isAnswered && !optIsCorrect) WrongRed else Yellow,
+                                                                unselectedColor = DividerGray
+                                                            )
+                                                        )
+                                                        Text(
+                                                            text = android.text.Html.fromHtml(quizOpt.text, android.text.Html.FROM_HTML_MODE_LEGACY).toString(),
+                                                            style = MaterialTheme.typography.bodyLarge,
+                                                            fontWeight = if (optIsSelected) FontWeight.Bold else FontWeight.Normal,
+                                                            color = TextPrimary
+                                                        )
+                                                    }
+                                                    if (isAnswered && optIsCorrect) {
+                                                        Icon(
+                                                            Icons.Filled.Check, null,
+                                                            tint = CorrectGreen,
+                                                            modifier = Modifier.size(20.dp)
+                                                        )
+                                                    } else if (isAnswered && optIsSelected && !optIsCorrect) {
+                                                        Icon(
+                                                            Icons.Filled.Close, null,
+                                                            tint = WrongRed,
+                                                            modifier = Modifier.size(20.dp)
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
