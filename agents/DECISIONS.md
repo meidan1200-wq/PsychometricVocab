@@ -5,6 +5,9 @@ Important decisions, newest on top. Format: `## YYYY-MM-DD — decision` then wh
 ## 2026-09-24 — The Manager does the final merge and every version
 QA no longer pushes to the working branch. It pushes to the feature branch it's reviewing, or to `qa/<topic>`. The Developer pushes to `feature/<name>`. The Manager gives the final verdict, merges into `claude/charming-planck-v3dszd`, and creates every version and release (releases need the owner's approval). Decided by the owner.
 
+## 2026-10-29 — Word-selection model (owner's design, the Manager's math)
+One continuous score per word: weight = E (exposure/recency from previous sessions, persisted) × D (difficulty from the smoothed success rate; recent misses ×1.5) × U (unit importance, only in all-words/Practice: unit 1 highest, a soft decline to ~0.5 at unit 10). Sampled by probability, with no if/else tie-breaks. Balance: 20–30% new words, ≤50% from the last 48h, and a cooldown for words answered right twice within 24h. Validated by a 30-day simulated-learner test with metric bands (overlap 30–60%, new 2–3/10, rising accuracy, unit-1 ≥1.5× unit-10 in master mode). Decided by the owner.
+
 ## 2026-10-25 — Token discipline (owner's request; learned from the MAFAM team)
 The silence and "." rules go at the top of every role file, including "even at wrap-up". Reports run about 5 lines. IT keeps reusable test scripts and a STATE.md outside the repo, cites screenshots by path, and compacts at ~75%. IT may move to Haiku (owner's call) with exact scripted briefs; the Manager checks its conclusions.
 
