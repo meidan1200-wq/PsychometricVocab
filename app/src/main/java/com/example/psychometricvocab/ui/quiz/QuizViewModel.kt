@@ -147,7 +147,9 @@ class QuizViewModel(app: Application) : AndroidViewModel(app) {
                 // Settings length.
                 val size = PracticeSession.size(PracticeSession.recentActiveCounts(activityLog.getAllCounts()))
                 pool = allWords
-                SessionSelector.select(pool, size, now, Random.Default, masterMode = true)
+                SessionSelector.select(
+                    pool, size, now, Random.Default, masterMode = true, config = SessionSelector.practiceConfig()
+                )
             } else {
                 // "Only words I didn't know" must still contain a known word the user just got
                 // wrong (quiz mode keeps isKnown = true on a miss): filtering on !isKnown alone
@@ -162,7 +164,8 @@ class QuizViewModel(app: Application) : AndroidViewModel(app) {
                 "SessionSelector",
                 "pool=${summary.pool} unknownOnly=$effectiveUnknownOnly master=$masterMode practice=$isReviewMode " +
                     "recent48hInPool=${summary.recentInPool} recent48hTaken=${summary.recentTaken} " +
-                    "newTaken=${summary.newTaken} taken=${summary.taken}"
+                    "newTaken=${summary.newTaken} dueInPool=${summary.dueInPool} dueTaken=${summary.dueTaken} " +
+                    "taken=${summary.taken}"
             )
             val questions = withContext(Dispatchers.Default) {
                 sessionWords.map { word -> buildQuestion(word, allWords, track) }

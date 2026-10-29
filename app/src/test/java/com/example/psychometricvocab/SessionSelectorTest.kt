@@ -37,6 +37,7 @@ class SessionSelectorTest {
         lastWrong: Boolean = false, unit: Int = 1, interval: Int = if (lastWrong) 1 else 6
     ) = word(id, unit = unit, correct = correct, wrong = wrong, known = known, srs = 1f,
         updatedAt = now - (hoursAgo * hour).toLong(), interval = interval)
+        .let { it.copy(nextReviewDate = it.updatedAt + interval * day) } // as the SRS schedules it
 
     private fun frequency(pool: List<Word>, count: Int, trials: Int, seed: Int = 7, master: Boolean = false): Map<Int, Int> {
         val random = Random(seed)
@@ -95,7 +96,7 @@ class SessionSelectorTest {
     @Test
     fun aWordMissedInTheLastSessionBeatsAnOldMasteredOne() {
         val missed = practised(1, correct = 0, wrong = 1, hoursAgo = 1.0, lastWrong = true)
-        val mastered = practised(2, correct = 10, wrong = 0, hoursAgo = 30 * 24.0, known = true)
+        val mastered = practised(2, correct = 10, wrong = 0, hoursAgo = 30 * 24.0, known = true, interval = 100)
         val fillers = (3..12).map { practised(it, correct = 2, wrong = 2, hoursAgo = 5 * 24.0) }
 
         assertTrue(SessionSelector.weight(missed, now) > 10 * SessionSelector.weight(mastered, now))
@@ -189,8 +190,8 @@ class SessionSelectorTest {
         val fresh = (1..5).flatMap { u -> (1..30).map { word(1000 + u * 100 + it, unit = u) } }
         val practisedPool = (1..40).map { practised(it, correct = 2, wrong = 1, hoursAgo = 100.0) }
         val random = Random(21)
-        for (master in listOf(false, true)) repeat(100) {
-            val newPicked = SessionSelector.select(practisedPool + fresh, 10, now, random, master).filter { SessionSelector.isNew(it) }
+        repeat(100) {
+            val newPicked = SessionSelector.select(practisedPool + fresh, 10, now, random, masterMode = false).filter { SessionSelector.isNew(it) }
             assertTrue("a session introduces some new words", newPicked.isNotEmpty())
             // 2-3 new words, drawn from the first ~9 in (unit, id) order: all of unit 1
             assertTrue("new words should come from the front of unit 1: ${newPicked.map { it.id }}", newPicked.all { it.unit == 1 })
@@ -198,14 +199,40 @@ class SessionSelectorTest {
     }
 
     @Test
-    fun atMostHalfASessionComesFromWordsAnsweredInTheLast48Hours() {
+    fun inMasterModeNewWordsComeFromEveryUnitWithLowerUnitsLikelier() {
+        val fresh = (1..10).flatMap { u -> (1..30).map { word(u * 1000 + it, unit = u) } }
+        val practisedPool = (1..40).map { practised(it, correct = 2, wrong = 1, hoursAgo = 100.0) }
+        val random = Random(22)
+        val perUnit = IntArray(11)
+        repeat(1500) {
+            SessionSelector.select(practisedPool + fresh, 10, now, random, masterMode = true)
+                .filter { SessionSelector.isNew(it) }.forEach { perUnit[it.unit]++ }
+        }
+        assertTrue("every unit is represented: ${perUnit.toList()}", (1..10).all { perUnit[it] > 0 })
+        assertTrue("unit 1 ${perUnit[1]} vs unit 10 ${perUnit[10]}", perUnit[1] > 1.4 * perUnit[10] && perUnit[1] < 2.6 * perUnit[10])
+    }
+
+    @Test
+    fun aboutAThirdOfASessionAtMostComesFromWordsAnsweredInTheLast48Hours() {
         val recent = (1..40).map { practised(it, correct = 0, wrong = 2, hoursAgo = 0.5, lastWrong = true) }
         val older = (101..160).map { practised(it, correct = 3, wrong = 1, hoursAgo = 200.0) }
         val random = Random(9)
-        for ((count, cap) in listOf(10 to 5, 15 to 8, 20 to 10)) repeat(200) {
+        for ((count, cap) in listOf(10 to 4, 15 to 6, 20 to 7)) repeat(200) {
             val picked = SessionSelector.select(recent + older, count, now, random)
             val n = picked.count { SessionSelector.isRecent(it, now) }
             assertTrue("$n recent of $count (cap $cap)", n <= cap)
+        }
+    }
+
+    @Test
+    fun dueWordsOfTheLast48HoursCountTowardTheSameCap() {
+        // everything answered 30 h ago with a 1-day interval: due AND recent
+        val dueAndRecent = (1..60).map { practised(it, correct = 1, wrong = 2, hoursAgo = 30.0, lastWrong = true) }
+        val older = (101..160).map { practised(it, correct = 3, wrong = 1, hoursAgo = 200.0) }
+        val random = Random(10)
+        repeat(200) {
+            val picked = SessionSelector.select(dueAndRecent + older, 10, now, random)
+            assertTrue(picked.count { SessionSelector.isRecent(it, now) } <= 4)
         }
     }
 
@@ -298,6 +325,82 @@ class SessionSelectorTest {
             totalMissed >= 2.0 * trials && totalMissed > 1.5 * totalRight)
     }
 
+    // ---- spaced review: the due share ----
+
+    @Test
+    fun aWordIsDueOnceItsReviewDatePassedUnlessItWasJustAnswered() {
+        val overdue = practised(1, 2, 1, hoursAgo = 10 * 24.0)                          // interval 6 days, answered 10 days ago
+        val notYet = practised(2, 2, 1, hoursAgo = 2 * 24.0)                            // next review in 4 days
+        val missedYesterday = practised(3, 0, 1, hoursAgo = 30.0, lastWrong = true)     // interval 1 day, 30 h ago
+        val missedJustNow = practised(4, 0, 1, hoursAgo = 0.5, lastWrong = true).copy(nextReviewDate = now - hour)
+        assertTrue(SessionSelector.isDue(overdue, now))
+        assertTrue(!SessionSelector.isDue(notYet, now))
+        assertTrue("a miss is due the next day", SessionSelector.isDue(missedYesterday, now))
+        assertTrue("never due within 24 h of the last answer", !SessionSelector.isDue(missedJustNow, now))
+        assertTrue("a never-answered word is not due, it is new", !SessionSelector.isDue(word(5), now))
+        assertTrue("progress older than v5 (no timestamp) is due once its date passed",
+            SessionSelector.isDue(word(6, correct = 3, srs = 2f, known = true).copy(nextReviewDate = now - day), now))
+    }
+
+    @Test
+    fun aQuarterOfASessionIsSpacedReviewOfDueWords() {
+        val due = (1..60).map { practised(it, correct = 2, wrong = 2, hoursAgo = 12 * 24.0) }
+        val recent = (101..160).map { practised(it, correct = 1, wrong = 1, hoursAgo = 1.0) }
+        val fresh = (201..300).map { word(it) }
+        val random = Random(31)
+        var total = 0
+        val trials = 600
+        repeat(trials) {
+            val picked = SessionSelector.select(due + recent + fresh, 10, now, random)
+            val n = picked.count { SessionSelector.isDue(it, now) }
+            // the reserved share is a floor: the recency-weighted draw can pick more due words too
+            assertTrue("$n due words in a session of 10", n >= 2)
+            total += n
+        }
+        assertTrue("mean due ${total.toDouble() / trials}", total.toDouble() / trials in 2.4..4.0)
+    }
+
+    @Test
+    fun practiceReservesAbout40PercentForDueWords() {
+        val due = (1..80).map { practised(it, correct = 2, wrong = 2, hoursAgo = 12 * 24.0) }
+        val recent = (101..160).map { practised(it, correct = 1, wrong = 1, hoursAgo = 1.0) }
+        val fresh = (201..300).map { word(it) }
+        val random = Random(32)
+        var total = 0
+        val trials = 400
+        repeat(trials) {
+            total += SessionSelector.select(due + recent + fresh, 15, now, random, masterMode = true, config = SessionSelector.practiceConfig())
+                .count { SessionSelector.isDue(it, now) }
+        }
+        assertTrue("mean due ${total.toDouble() / trials} of 15", total.toDouble() / trials in 5.8..8.0)
+    }
+
+    @Test
+    fun dueWordsAreDrawnHardestFirst() {
+        val hard = practised(1, correct = 0, wrong = 6, hoursAgo = 12 * 24.0)
+        val easy = (2..40).map { practised(it, correct = 8, wrong = 0, hoursAgo = 12 * 24.0, known = true) }
+        val fresh = (201..260).map { word(it) }
+        val random = Random(33)
+        var hardHits = 0
+        var easyHits = 0
+        repeat(800) {
+            val picked = SessionSelector.select(listOf(hard) + easy + fresh, 10, now, random).map { it.id }
+            if (1 in picked) hardHits++
+            easyHits += picked.count { it in 2..40 }
+        }
+        val easyRate = easyHits / 800.0 / easy.size
+        assertTrue("hard word in ${hardHits / 8}% of sessions, an easy one in ${(easyRate * 100).toInt()}%", hardHits / 800.0 > 3 * easyRate)
+    }
+
+    @Test
+    fun withNothingDueTheSessionIsStillFull() {
+        val recent = (1..40).map { practised(it, correct = 1, wrong = 1, hoursAgo = 1.0) }
+        val fresh = (201..260).map { word(it) }
+        val picked = SessionSelector.select(recent + fresh, 10, now, Random(34))
+        assertEquals(10, picked.size)
+        assertEquals(0, picked.count { SessionSelector.isDue(it, now) })
+    }
+
     // ---- shape of the result ----
 
     @Test
@@ -332,7 +435,7 @@ class SessionSelectorTest {
         val hits = frequency(hard + easy, count = 10, trials = 100)
         val hardPicked = (1..10).sumOf { hits.getOrDefault(it, 0) }
         // hard words are ~9% of the pool but carry far more weight than mastered ones
-        assertTrue("hard words picked $hardPicked/1000", hardPicked > 400)
+        assertTrue("hard words picked $hardPicked/1000 (4 a session is the recent cap)", hardPicked >= 390)
     }
 
     @Test
@@ -350,6 +453,9 @@ class SessionSelectorTest {
         val fresh = (21..24).map { word(it) }
         val pool = recent + old + fresh
         val s = SessionSelector.summarize(pool, recent.take(3) + old.take(2) + fresh.take(1), now)
-        assertEquals(SessionSelector.Summary(pool = 20, recentInPool = 6, recentTaken = 3, newTaken = 1, taken = 6), s)
+        assertEquals(
+            SessionSelector.Summary(pool = 20, recentInPool = 6, recentTaken = 3, newTaken = 1, taken = 6, dueInPool = 10, dueTaken = 2),
+            s
+        )
     }
 }

@@ -32,10 +32,14 @@ import kotlin.random.Random
  *   C  cooldown: a word answered RIGHT in its last two answers, the last one within 24 h,
  *      is x0.3 so a word the user just nailed twice isn't served again right away.
  *
- * Sampling is weighted, without replacement (Efraimidis-Spirakis: key = u^(1/w), top N), with
- * two balance rules on top so a session is "not too repetitive, still new words":
- *   - 20-30% of a session are brand-new (never answered) words, introduced in unit order;
- *   - at most 50% of a session comes from words answered in the last 48 h.
+ * Sampling is weighted, without replacement (Efraimidis-Spirakis: key = u^(1/w), top N), and a
+ * session is built from shares so repetition can't crowd out spaced review:
+ *   - 20-30% brand-new (never answered) words: in unit order within a unit, U-weighted across
+ *     units in master mode;
+ *   - ~25% (Practice ~40%) spaced review: words DUE by SRS (nextReviewDate passed, not answered in
+ *     the last 24 h), drawn by D*U;
+ *   - the rest by the full E*D*U*C weight, with the whole session holding at most ~35% words
+ *     answered in the last 48 h.
  *
  * All the constants live in [Config] so the simulation (SelectionSimulationTest) can show what
  * they do; the defaults are the tuned values.
@@ -46,7 +50,7 @@ object SessionSelector {
         val newFractionMin: Double = 0.20,
         val newFractionMax: Double = 0.30,
         /** At most this share of a session may be words answered in the last 48 h (rounded up). */
-        val recentMaxFraction: Double = 0.50,
+        val recentMaxFraction: Double = 0.35,
         val recentWindowHours: Double = 48.0,
         /** E = 1 + shortBoost*exp(-h/shortHours) + longBoost*exp(-h/longHours) */
         val shortBoost: Double = 300.0,
@@ -60,10 +64,28 @@ object SessionSelector {
         val unitSlope: Double = 0.1,
         /** C = cooldownFactor for a word right twice in a row, the last answer within cooldownHours. */
         val cooldownFactor: Double = 0.3,
-        val cooldownHours: Double = 24.0
+        val cooldownHours: Double = 24.0,
+        /**
+         * Spaced review: this share of a session is reserved for words that are DUE by SRS
+         * (nextReviewDate passed, practised, not answered in the last [dueMinHours]), drawn by
+         * D*U. Practice uses [practiceDueFraction].
+         */
+        val dueFraction: Double = 0.25,
+        val practiceDueFraction: Double = 0.40,
+        val dueMinHours: Double = 24.0,
+        /**
+         * Whether due words answered in the last 48 h (the missed-yesterday ones) use up slots of
+         * the recent cap. true keeps the plain rule "at most 35% of a session from the last 48 h";
+         * false gives the recency draw the whole cap back (more overlap with the previous session,
+         * less retention: see the trade-off table in HANDOFF).
+         */
+        val dueCountsTowardRecentCap: Boolean = true
     )
 
     private const val MS_PER_HOUR = 3_600_000.0
+
+    /** The Config Practice uses: same split, bigger spaced-review share. */
+    fun practiceConfig(base: Config = Config()): Config = base.copy(dueFraction = base.practiceDueFraction)
 
     /** Never answered, never marked known, no score: still a brand-new word. */
     fun isNew(w: Word): Boolean =
@@ -121,12 +143,17 @@ object SessionSelector {
     /** "רק מילים שלא ידעתי": not known yet, or known but just answered wrong. */
     fun unknownOnlyPool(words: List<Word>): List<Word> = words.filter { !it.isKnown || lastAnswerWrong(it) }
 
+    /** Due for spaced review: practised, SRS says it's time, and not just answered. */
+    fun isDue(w: Word, now: Long, config: Config = Config()): Boolean =
+        !isNew(w) && w.nextReviewDate <= now && (w.updatedAt <= 0L || hoursSince(w, now) >= config.dueMinHours)
+
     fun isRecent(w: Word, now: Long, config: Config = Config()): Boolean =
         !isNew(w) && w.updatedAt > 0L && hoursSince(w, now) <= config.recentWindowHours
 
     /** What a selection looked like, for the on-device log line. */
     data class Summary(
-        val pool: Int, val recentInPool: Int, val recentTaken: Int, val newTaken: Int, val taken: Int
+        val pool: Int, val recentInPool: Int, val recentTaken: Int, val newTaken: Int, val taken: Int,
+        val dueInPool: Int = 0, val dueTaken: Int = 0
     )
 
     fun summarize(pool: List<Word>, selected: List<Word>, now: Long, config: Config = Config()): Summary =
@@ -135,7 +162,9 @@ object SessionSelector {
             recentInPool = pool.count { isRecent(it, now, config) },
             recentTaken = selected.count { isRecent(it, now, config) },
             newTaken = selected.count { isNew(it) },
-            taken = selected.size
+            taken = selected.size,
+            dueInPool = pool.count { isDue(it, now, config) },
+            dueTaken = selected.count { isDue(it, now, config) }
         )
 
     fun select(
@@ -161,31 +190,58 @@ object SessionSelector {
         val practisedQuota = min(practised.size, count - newQuota)
         newQuota = min(fresh.size, count - practisedQuota)
 
-        val fromPractised = sampleCapped(practised, practisedQuota, count, now, random, masterMode, config)
+        // Spaced review first: the due share is drawn by D*U among the due words; if there aren't
+        // that many due, the remaining practised slots go to the recency-weighted draw.
+        val dueQuota = min(practisedQuota, randomRound(count * config.dueFraction, random))
+        val due = sampleWeighted(practised.filter { isDue(it, now, config) }, dueQuota, random) {
+            difficulty(it, config) * unitImportance(it, masterMode, config)
+        }
+        val dueIds = due.mapTo(HashSet()) { it.id }
+
+        val fromE = sampleCapped(
+            practised.filter { it.id !in dueIds }, practisedQuota - due.size, count,
+            if (config.dueCountsTowardRecentCap) due.count { isRecent(it, now, config) } else 0,
+            now, random, masterMode, config
+        )
         val fromNew = pickNew(fresh, newQuota, random, masterMode, config)
         // Shuffle so the new words aren't always the last questions.
-        return (fromPractised + fromNew).shuffled(random)
+        return (due + fromE + fromNew).shuffled(random)
+    }
+
+    /** 2.5 -> 2 or 3 with equal chance, so the average share is exactly the configured one. */
+    private fun randomRound(x: Double, random: Random): Int {
+        val whole = x.toInt()
+        return whole + if (random.nextDouble() < x - whole) 1 else 0
+    }
+
+    /** Weighted sampling without replacement (Efraimidis-Spirakis: key = u^(1/w), top n). */
+    private fun sampleWeighted(pool: List<Word>, n: Int, random: Random, weight: (Word) -> Double): List<Word> {
+        if (n <= 0 || pool.isEmpty()) return emptyList()
+        // ln(u)/w orders identically to u^(1/w) and doesn't underflow.
+        return pool
+            .map { w -> w to ln(max(random.nextDouble(), 1e-12)) / weight(w) }
+            .sortedByDescending { it.second }
+            .take(n)
+            .map { it.first }
     }
 
     /**
-     * Weighted sampling without replacement (Efraimidis-Spirakis), keeping at most
-     * ceil(50% of the whole session) words answered in the last 48 h; if the pool has too few other
-     * words to fill the session, the cap gives way rather than returning a short session.
+     * The recency-weighted draw (E*D*U*C), keeping the whole session at no more than
+     * ceil(35% of the session) words answered in the last 48 h ([recentAlready] of those slots were
+     * taken by the due words); if the pool has too few other words to fill the slots, the cap gives
+     * way rather than returning a short session.
      */
     private fun sampleCapped(
-        pool: List<Word>, n: Int, sessionSize: Int, now: Long, random: Random, masterMode: Boolean, config: Config
+        pool: List<Word>, n: Int, sessionSize: Int, recentAlready: Int,
+        now: Long, random: Random, masterMode: Boolean, config: Config
     ): List<Word> {
         if (n <= 0) return emptyList()
         val ranked = pool
-            .map { w ->
-                // key = u^(1/weight); ln(u)/weight orders identically and doesn't underflow.
-                val u = max(random.nextDouble(), 1e-12)
-                w to ln(u) / weight(w, now, masterMode, config)
-            }
+            .map { w -> w to ln(max(random.nextDouble(), 1e-12)) / weight(w, now, masterMode, config) }
             .sortedByDescending { it.second }
             .map { it.first }
 
-        val cap = ceil(sessionSize * config.recentMaxFraction).toInt()
+        val cap = max(0, ceil(sessionSize * config.recentMaxFraction).toInt() - recentAlready)
         val picked = ArrayList<Word>(n)
         val skipped = ArrayList<Word>()
         var recent = 0
@@ -205,22 +261,17 @@ object SessionSelector {
     }
 
     /**
-     * New words come in asset/unit order with only light randomness: choose [n] from a window of
-     * the first ~3n new words (sorted by unit, then id), so a unit's new words are introduced
-     * progressively rather than scattered across the whole track. In master mode the choice
-     * inside that window is also weighted by unit importance.
+     * Never-seen words. In a single unit they come in unit/id order with only light randomness:
+     * [n] from a window of the first ~3n new words, so a unit is introduced progressively. In master
+     * mode ("All words", Practice) they are drawn from every unit's unseen words weighted by unit
+     * importance: unit 1 is likelier, but every unit is represented.
      */
     private fun pickNew(
         fresh: List<Word>, n: Int, random: Random, masterMode: Boolean, config: Config
     ): List<Word> {
         if (n <= 0) return emptyList()
+        if (masterMode) return sampleWeighted(fresh, n, random) { unitImportance(it, true, config) }
         val ordered = fresh.sortedWith(compareBy<Word>({ it.unit }, { it.id }))
-        val window = ordered.take(max(n, min(ordered.size, n * 3)))
-        if (!masterMode) return window.shuffled(random).take(n)
-        return window
-            .map { w -> w to ln(max(random.nextDouble(), 1e-12)) / unitImportance(w, true, config) }
-            .sortedByDescending { it.second }
-            .take(n)
-            .map { it.first }
+        return ordered.take(max(n, min(ordered.size, n * 3))).shuffled(random).take(n)
     }
 }

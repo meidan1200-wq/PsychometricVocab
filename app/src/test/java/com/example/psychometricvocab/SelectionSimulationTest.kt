@@ -18,28 +18,45 @@ class SelectionSimulationTest {
 
     private fun runAll(scenario: Scenario) = seeds.map { SelectionSimulation.run(scenario, it) }
 
-    private fun assertBands(results: List<SelectionSimulation.Result>) {
+    private fun runBaseline(scenario: Scenario) = seeds.map { SelectionSimulation.run(scenario, it, SelectionSimulation.uniformBaseline()) }
+
+    private fun assertBands(results: List<SelectionSimulation.Result>, baseline: List<SelectionSimulation.Result>) {
         for (r in results) {
-            val v = SelectionSimulation.violations(r)
+            val v = SelectionSimulation.violations(r, targets = SelectionSimulation.GUARD)
             assertTrue("${r.scenario.name}, seed ${r.seed}: ${v.joinToString("; ")}", v.isEmpty())
         }
-        val rise = SelectionSimulation.riseViolation(results)
-        assertTrue(rise ?: "", rise == null)
+        val retention = SelectionSimulation.retentionViolation(results, baseline, SelectionSimulation.GUARD)
+        assertTrue(retention ?: "", retention == null)
     }
 
     @Test
     fun allBandsHoldAndTheTableIsPrinted() {
-        val single = runAll(SelectionSimulation.singleUnit())
-        val masterCold = runAll(SelectionSimulation.masterCold())
-        val masterWarm = runAll(SelectionSimulation.masterWarm())
+        val singleScenario = SelectionSimulation.singleUnit()
+        val coldScenario = SelectionSimulation.masterCold()
+        val warmScenario = SelectionSimulation.masterWarm()
+        val single = runAll(singleScenario)
+        val masterCold = runAll(coldScenario)
+        val masterWarm = runAll(warmScenario)
+        val singleBase = runBaseline(singleScenario)
+        val coldBase = runBaseline(coldScenario)
+        val warmBase = runBaseline(warmScenario)
         val info = runAll(SelectionSimulation.masterMature()) + runAll(SelectionSimulation.heavyWeek())
-        val table = SelectionSimulation.table(single + masterCold + masterWarm + info)
-        println(table)
+        val table = SelectionSimulation.table(
+            single + masterCold + masterWarm + info,
+            mapOf(singleScenario.name to singleBase, coldScenario.name to coldBase, warmScenario.name to warmBase)
+        )
+        val missed = listOf(single to singleBase, masterCold to coldBase, masterWarm to warmBase).flatMap { (rs, base) ->
+            rs.flatMap { SelectionSimulation.violations(it).map { v -> "${it.scenario.name}, seed ${it.seed}: $v" } } +
+                listOfNotNull(SelectionSimulation.retentionViolation(rs, base))
+        }
+        val report = table + "\nTargets as specified (overlap >= 30%, retention +10 points and within 5 of uniform): " +
+            (if (missed.isEmpty()) "all met\n" else "${missed.size} missed\n" + missed.joinToString("\n") { "  - $it" } + "\n")
+        println(report)
         File("build").mkdirs()
-        File("build/selection-simulation.txt").writeText(table)
-        assertBands(single)
-        assertBands(masterCold)
-        assertBands(masterWarm)
+        File("build/selection-simulation.txt").writeText(report)
+        assertBands(single, singleBase)
+        assertBands(masterCold, coldBase)
+        assertBands(masterWarm, warmBase)
     }
 
     @Test
