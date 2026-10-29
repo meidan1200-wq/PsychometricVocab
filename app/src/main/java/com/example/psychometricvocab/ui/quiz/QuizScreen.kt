@@ -169,7 +169,9 @@ fun QuizScreen(
                                         label = "quizWord"
                                     ) { shownWord ->
                                         Column(
-                                            modifier = Modifier.padding(16.dp),
+                                            // Full width, so the speaker, word, underline and hint are
+                                            // centred in the card (a wrapping Column sat at the start side).
+                                            modifier = Modifier.fillMaxWidth().padding(16.dp),
                                             horizontalAlignment = Alignment.CenterHorizontally
                                         ) {
                                             val displayWord = shownWord.cleanWord

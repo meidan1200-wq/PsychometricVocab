@@ -49,7 +49,14 @@ abstract class VocabDatabase : RoomDatabase() {
 
         fun getInstance(context: Context): VocabDatabase {
             return INSTANCE ?: synchronized(this) {
-                val backupOk = BackupManager.backupBeforeMigrationIfNeeded(context)
+                // A caller that waited for the lock must find the instance the first one built:
+                // without this check it built a SECOND Room instance on the same file (the
+                // start-up warm-up thread and the first screen can arrive together), and two
+                // instances don't notify each other's observers.
+                INSTANCE?.let { return it }
+                val backupOk = StartupTrace.time("BackupManager version check") {
+                    BackupManager.backupBeforeMigrationIfNeeded(context)
+                }
                 if (!backupOk) {
                     // BackupManager already tried external storage, then internal storage, and
                     // still failed both. Log it loudly rather than fail silently. We still
