@@ -64,7 +64,7 @@ fun QuizScreen(
         append(if (isHebrew) "מבחן" else "Quiz")
         append(" - ")
         if (isReviewMode) {
-            append(if (isHebrew) "תרגול" else "Practice")
+            append(if (isHebrew) "חזרה" else "Review")
         } else {
             append(
                 if (unit != null) {
