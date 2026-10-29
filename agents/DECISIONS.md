@@ -5,6 +5,9 @@ Important decisions, newest on top. Format: `## YYYY-MM-DD — decision` then wh
 ## 2026-09-24 — The Manager does the final merge and every version
 QA no longer pushes to the working branch. It pushes to the feature branch it's reviewing, or to `qa/<topic>`. The Developer pushes to `feature/<name>`. The Manager gives the final verdict, merges into `claude/charming-planck-v3dszd`, and creates every version and release (releases need the owner's approval). Decided by the owner.
 
+## 2026-10-29 — v1.1.9: card content stays at the start edge; ripple is intended
+The owner reverted the quiz card centring: the word sits at the start edge (right in Hebrew, left in English), as in every version before 1.1.9. The brief darkening when tapping an answer is the standard Material ripple (intended). The release was approved by the owner with no further IT run.
+
 ## 2026-10-29 — v1.1.8 released; selection trade-off; label back to "חזרה"
 The Manager chose the balanced selection setting (due 25% / Practice 40%, recent cap 35%: ~25% overlap, simulated retention 52→58) over heavier repetition, which hurt retention. The owner renamed "תרגול" back to "חזרה" / "Review" and approved the release.
 

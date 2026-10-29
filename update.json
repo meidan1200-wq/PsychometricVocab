@@ -1,6 +1,6 @@
 {
-  "latest_version": "1.1.8",
-  "latest_version_code": 10,
-  "apk_url": "https://github.com/meidan1200-wq/PsychometricVocab/releases/download/v1.1.8/app-debug.apk",
-  "release_notes": "Smarter word selection: words you missed and recent words come back, with spaced review and new words mixed in. Review adapts to your daily practice. 'Another round' on the results screen. Auto pass no longer skips questions."
+  "latest_version": "1.1.9",
+  "latest_version_code": 11,
+  "apk_url": "https://github.com/meidan1200-wq/PsychometricVocab/releases/download/v1.1.9/app-debug.apk",
+  "release_notes": "Smoother quiz: the word card's shadow no longer flickers, and the word and answers change together. Faster first launch."
 }

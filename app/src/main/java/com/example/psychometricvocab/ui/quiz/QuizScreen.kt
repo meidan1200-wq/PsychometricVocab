@@ -163,7 +163,9 @@ fun QuizScreen(
                                     Column(
                                         // Full width, so the speaker, word, underline and hint are
                                         // centred in the card (a wrapping Column sat at the start side).
-                                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                        // Not fillMaxWidth: the content block sits at the start edge (right in Hebrew, left in
+                                        // English), as in every version before 1.1.9. Owner's decision.
+                                        modifier = Modifier.padding(16.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally
                                     ) {
                                         val displayWord = currentQuestion.word.cleanWord
