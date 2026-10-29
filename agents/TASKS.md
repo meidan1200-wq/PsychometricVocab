@@ -29,3 +29,6 @@ Owned by the Manager. Format: `- [ ] task — owner — status`.
 - [x] S1 upgrade test on the owner's real export (from v1.1.6) — IT — PASS 2026-10-17: 6215/6215 rows, 0 progress diffs, 0 unmatched stableIds, 162/2045/439 kept, backup OK, MigrationTest OK
 - [x] Removed the temporary "Export my data (test)" button (owner asked IT directly; c173290, unreleased, ships with the next version)
 - [ ] **v1.1.8** `feature/learning-v2`: weighted selection, Practice, activity-log sync, another round, auto-pass skip fix — Developer
+- [x] v1.1.8 released 2026-10-29 (master d32970b)
+- [ ] First cold launch after an update can show 'not responding' once (emulator); move startup work off the main thread (EncryptedSharedPreferences/Firebase init) — QA/Developer
+- [ ] Known limit: with 8+ sessions a day, one word can be asked up to ~7x a day — later
