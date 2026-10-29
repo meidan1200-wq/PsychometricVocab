@@ -32,3 +32,4 @@ Owned by the Manager. Format: `- [ ] task — owner — status`.
 - [x] v1.1.8 released 2026-10-29 (master d32970b)
 - [ ] First cold launch after an update can show 'not responding' once (emulator); move startup work off the main thread (EncryptedSharedPreferences/Firebase init) — QA/Developer
 - [ ] Known limit: with 8+ sessions a day, one word can be asked up to ~7x a day — later
+- [x] Quiz card shadow clipped in transitions + content centred; first-launch startup work moved off the main thread — fix/quiz-card-shadow merged (IT: 0 ANR in 3 cold launches, Displayed 2.4–3.8s)
