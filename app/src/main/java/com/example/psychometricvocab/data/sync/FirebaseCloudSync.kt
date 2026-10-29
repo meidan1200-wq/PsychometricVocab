@@ -127,13 +127,43 @@ class FirebaseCloudSync private constructor(private val appContext: Context) : C
         }
     }
 
-    override suspend fun pull(): List<SyncRecord>? {
+    override suspend fun pushActivity(counts: Map<String, Int>) {
+        val uid = auth.currentUser?.uid ?: return
+        val days = counts.filterValues { it > 0 }
+        if (days.isEmpty()) return
+        val col = progressCollection(uid)
+        val now = System.currentTimeMillis()
+        // Same collection and shape as the word records: users/{uid}/progress/vocab~activity-YYYY-MM-DD
+        days.entries.chunked(400).forEach { chunk ->
+            val batch = db.batch()
+            chunk.forEach { (day, count) ->
+                val key = ACTIVITY_PREFIX + day
+                batch.set(
+                    col.document(DOC_PREFIX + key),
+                    mapOf(
+                        "uid" to uid,
+                        "app" to APP,
+                        "itemKey" to key,
+                        "data" to mapOf("count" to count),
+                        "updatedAt" to now,
+                        "device" to "phone"
+                    )
+                )
+            }
+            withTimeoutOrNull(PUSH_WAIT_MS) { batch.commit().await() }
+        }
+    }
+
+    override suspend fun pull(): RemoteProgress? {
         val uid = auth.currentUser?.uid ?: return null
         return try {
             // Source.SERVER: an offline/failed pull throws (-> null below), rather than silently
             // handing back a stale cache that would look like "remote has nothing".
             val snap = progressCollection(uid).whereEqualTo("app", APP).get(Source.SERVER).await()
-            snap.documents.mapNotNull { it.toRecord() }
+            RemoteProgress(
+                words = snap.documents.mapNotNull { it.toRecord() },
+                activity = snap.documents.mapNotNull { it.toActivityDay() }.toMap()
+            )
         } catch (e: Exception) {
             Log.w(TAG, "pull failed or offline; changing nothing", e)
             null
@@ -166,8 +196,17 @@ class FirebaseCloudSync private constructor(private val appContext: Context) : C
         "device" to "phone"
     )
 
+    /** (ISO date, count) for an "activity-YYYY-MM-DD" document, null for any other kind. */
+    private fun DocumentSnapshot.toActivityDay(): Pair<String, Int>? {
+        val itemKey = getString("itemKey") ?: return null
+        if (!itemKey.startsWith(ACTIVITY_PREFIX)) return null
+        val count = ((get("data") as? Map<*, *>)?.get("count") as? Number)?.toInt() ?: return null
+        return itemKey.removePrefix(ACTIVITY_PREFIX) to count
+    }
+
     private fun DocumentSnapshot.toRecord(): SyncRecord? {
         val itemKey = getString("itemKey") ?: return null
+        if (itemKey.startsWith(ACTIVITY_PREFIX)) return null // an activity day, not a word
         val data = get("data") as? Map<*, *> ?: return null
         val updatedAt = (get("updatedAt") as? Number)?.toLong() ?: return null
         fun num(k: String) = data[k] as? Number
@@ -188,6 +227,7 @@ class FirebaseCloudSync private constructor(private val appContext: Context) : C
         private const val TAG = "FirebaseCloudSync"
         private const val APP = "vocab"
         private const val DOC_PREFIX = "vocab~"
+        private const val ACTIVITY_PREFIX = "activity-"
         private const val PUSH_WAIT_MS = 8_000L
 
         /** The Firebase-backed sync, or [UnavailableCloudSync] if this build has no Firebase config. */

@@ -64,7 +64,7 @@ fun QuizScreen(
         append(if (isHebrew) "מבחן" else "Quiz")
         append(" - ")
         if (isReviewMode) {
-            append(if (isHebrew) "מילים קשות" else "Hardest Words")
+            append(if (isHebrew) "חזרה" else "Review")
         } else {
             append(
                 if (unit != null) {
@@ -96,7 +96,11 @@ fun QuizScreen(
                         wrong = state.wrongCount,
                         total = state.total,
                         isHebrew = isHebrew,
-                        onBack = onBack
+                        // Same kind of session again (same unit/type/length, or Practice), with a
+                        // fresh selection. Going home is the bottom bar's job now.
+                        onAnotherRound = {
+                            vm.resetQuiz(appState.track, unit, unknownOnly, isReviewMode, useSavedPreference)
+                        }
                     )
                 }
                 else -> {
@@ -252,7 +256,7 @@ fun QuizScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clickable(enabled = !isAnswered) {
-                                                vm.onAnswer(quizOpt.wordId, quizOpt.isCorrect)
+                                                vm.onAnswer(currentIndex, quizOpt.wordId, quizOpt.isCorrect)
                                             }
                                     ) {
                                         CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Rtl) {
@@ -302,9 +306,11 @@ fun QuizScreen(
                                 Spacer(Modifier.height(24.dp))
                             }
 
-                            // Next / Finish button
+                            // Next / Finish button. With Auto pass ON it is not shown at all: the timer
+                            // is the only way forward (a tap on the sliding-out button was how a
+                            // question got skipped). With Auto pass OFF it is the only way.
                             AnimatedVisibility(
-                                visible = currentQuestion.answered,
+                                visible = currentQuestion.answered && !autoPassEnabled,
                                 enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
                                 exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
                             ) {
@@ -315,10 +321,10 @@ fun QuizScreen(
                                     } else {
                                         if (isHebrew) "הבא ←" else "Next →"
                                     },
-                                    // `currentIndex` is this question's index, captured in this
-                                    // composition: while the button animates out after a tap it
-                                    // is still clickable, and a second tap then passes the OLD
-                                    // index, which onNext(expectedIndex) ignores.
+                                    // While this button slides out after a tap it is still
+                                    // clickable, and AnimatedVisibility recomposes it with the NEW
+                                    // question's index. That is safe only because onNext refuses to
+                                    // advance a question that has not been answered.
                                     onClick = { vm.onNext(currentIndex) },
                                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
                                 )
@@ -338,7 +344,7 @@ private fun QuizResultScreen(
     wrong: Int,
     total: Int,
     isHebrew: Boolean,
-    onBack: () -> Unit
+    onAnotherRound: () -> Unit
 ) {
     val pct = if (total > 0) (correct * 100 / total) else 0
     val emoji = when {
@@ -410,9 +416,9 @@ private fun QuizResultScreen(
         }
         Spacer(Modifier.height(32.dp))
         YellowButton(
-            text = if (isHebrew) "חזור לתפריט" else "Back to Menu",
-            onClick = onBack,
-            modifier = Modifier.fillMaxWidth()
+            text = if (isHebrew) "עוד סיבוב" else "Another round",
+            onClick = onAnotherRound,
+            modifier = Modifier.fillMaxWidth(0.8f)
         )
     }
 }

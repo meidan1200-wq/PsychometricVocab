@@ -47,41 +47,4 @@ object SrsEngine {
             )
         }
     }
-
-    /** Returns words weighted by SRS priority and mistake history */
-    fun selectWordsForSession(words: List<Word>, count: Int): List<Word> {
-        if (words.isEmpty()) return emptyList()
-        val weighted = mutableListOf<Word>()
-        words.forEach { word ->
-            var weight = when {
-                word.isKnown -> 1
-                word.srsScore < 1f -> 5
-                word.srsScore < 2f -> 4
-                word.srsScore < 3f -> 3
-                else -> 2
-            }
-            
-            // Add massive weight for words the user gets wrong frequently
-            val totalAttempts = word.correctCount + word.wrongCount
-            if (totalAttempts > 0) {
-                val mistakeRatio = word.wrongCount.toFloat() / totalAttempts.toFloat()
-                weight += (mistakeRatio * 10).toInt()
-            } else if (word.srsScore == 0f) {
-                // Completely new words get a small boost to introduce them
-                weight += 2
-            }
-            
-            repeat(weight) { weighted.add(word) }
-        }
-        weighted.shuffle()
-        // Walk the shuffled, weighted list and keep the first occurrence of each word.
-        // (The old "take + distinct, then top up from the start" padded the session with
-        // words that were already in it, so the same question could appear twice.)
-        val selected = LinkedHashMap<Int, Word>()
-        for (word in weighted) {
-            if (selected.size >= count) break
-            selected.putIfAbsent(word.id, word)
-        }
-        return selected.values.toList()
-    }
 }

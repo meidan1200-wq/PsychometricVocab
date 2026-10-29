@@ -1,12 +1,14 @@
 package com.example.psychometricvocab.ui.quiz
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.psychometricvocab.data.ActivityLog
 import com.example.psychometricvocab.data.sync.SyncCoordinator
 import com.example.psychometricvocab.data.QuizPreferences
-import com.example.psychometricvocab.data.SrsEngine
+import com.example.psychometricvocab.data.PracticeSession
+import com.example.psychometricvocab.data.SessionSelector
 import com.example.psychometricvocab.data.VocabDatabase
 import com.example.psychometricvocab.data.VocabRepository
 import com.example.psychometricvocab.data.Word
@@ -42,13 +44,38 @@ data class QuizUiState(
 
     /**
      * The pure transition behind QuizViewModel.onNext(expectedIndex): moves to the next question
-     * only if still on [expectedIndex]; otherwise returns this state unchanged (a duplicate
-     * Next for a question that was already left).
+     * only if still on [expectedIndex] AND that question has been answered; otherwise returns
+     * this same instance (a duplicate Next for a question that was already left, or a Next that
+     * would skip an unanswered question).
+     *
+     * The "answered" half is what makes a skipped question impossible. The Next button sits in an
+     * AnimatedVisibility that stays clickable while it slides out after a tap, and the content
+     * lambda it keeps showing is recomposed with the NEW question's index, so a second tap in
+     * that window used to pass the new (unanswered) index and advance past it: a 15-question quiz
+     * ended with 14 answers. Now every advance requires an answer, so answers == questions.
      */
     fun advanceFrom(expectedIndex: Int): QuizUiState {
         if (currentIndex != expectedIndex) return this
+        if (questions.getOrNull(expectedIndex)?.answered != true) return this
         val nextIndex = currentIndex + 1
         return copy(currentIndex = nextIndex, sessionComplete = nextIndex >= questions.size)
+    }
+
+    /**
+     * Records an answer to the question at [expectedIndex]. Returns this same instance if the quiz
+     * is no longer on that question or it was already answered, so a duplicate tap counts once.
+     */
+    fun withAnswer(expectedIndex: Int, optionId: Int, isCorrect: Boolean): QuizUiState {
+        if (currentIndex != expectedIndex) return this
+        val current = questions.getOrNull(expectedIndex) ?: return this
+        if (current.answered) return this
+        val updated = questions.toMutableList()
+        updated[expectedIndex] = current.copy(answered = true, selectedOptionId = optionId)
+        return copy(
+            questions = updated,
+            correctCount = if (isCorrect) correctCount + 1 else correctCount,
+            wrongCount = if (!isCorrect) wrongCount + 1 else wrongCount
+        )
     }
 }
 
@@ -59,6 +86,7 @@ class QuizViewModel(app: Application) : AndroidViewModel(app) {
         SyncCoordinator.get(app)::onWordChanged
     )
     private val quizPrefs = QuizPreferences(app)
+    private val activityLog = ActivityLog(app)
 
     private val _state = MutableStateFlow(QuizUiState())
     val state: StateFlow<QuizUiState> = _state.asStateFlow()
@@ -108,14 +136,37 @@ class QuizViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             val allWords = repo.getWordsForSession(track, if (isReviewMode) null else unit).first()
+            val now = System.currentTimeMillis()
+            // "All words" quizzes and Practice span every unit, so the unit-importance nudge
+            // (lower units are likelier on the real test) applies; a single-unit quiz doesn't.
+            val masterMode = isReviewMode || unit == null
+            val pool: List<Word>
             val sessionWords = if (isReviewMode) {
-                // Fixed length regardless of the Quiz Settings length slider: the red review
-                // card always drills the same-size, hand-picked set of hardest words.
-                repo.getHardestWordsForReview(track, REVIEW_WORD_COUNT)
+                // Personal PRACTICE (the Home "Practice" column): the whole track, and a session
+                // size that adapts to how much the user actually practises per day, not the Quiz
+                // Settings length.
+                val size = PracticeSession.size(PracticeSession.recentActiveCounts(activityLog.getAllCounts()))
+                pool = allWords
+                SessionSelector.select(
+                    pool, size, now, Random.Default, masterMode = true, config = SessionSelector.practiceConfig()
+                )
             } else {
-                val pool = if (effectiveUnknownOnly) allWords.filter { !it.isKnown } else allWords
-                SrsEngine.selectWordsForSession(pool.ifEmpty { allWords }, length)
+                // "Only words I didn't know" must still contain a known word the user just got
+                // wrong (quiz mode keeps isKnown = true on a miss): filtering on !isKnown alone
+                // removed exactly the words the owner wants back.
+                pool = (if (effectiveUnknownOnly) SessionSelector.unknownOnlyPool(allWords) else allWords)
+                    .ifEmpty { allWords }
+                SessionSelector.select(pool, length, now, Random.Default, masterMode)
             }
+            // What the selector did, so a device run can be checked from logcat (tag SessionSelector).
+            val summary = SessionSelector.summarize(pool, sessionWords, now)
+            Log.i(
+                "SessionSelector",
+                "pool=${summary.pool} unknownOnly=$effectiveUnknownOnly master=$masterMode practice=$isReviewMode " +
+                    "recent48hInPool=${summary.recentInPool} recent48hTaken=${summary.recentTaken} " +
+                    "newTaken=${summary.newTaken} dueInPool=${summary.dueInPool} dueTaken=${summary.dueTaken} " +
+                    "taken=${summary.taken}"
+            )
             val questions = withContext(Dispatchers.Default) {
                 sessionWords.map { word -> buildQuestion(word, allWords, track) }
             }
@@ -152,35 +203,30 @@ class QuizViewModel(app: Application) : AndroidViewModel(app) {
         return QuizQuestion(word = word, options = options)
     }
 
-    fun onAnswer(optionId: Int, isCorrect: Boolean) {
-        val current = _state.value.currentQuestion ?: return
-        if (current.answered) return
-        viewModelScope.launch {
-            repo.processAnswer(current.word, isCorrect, isQuiz = true, isNotSure = (optionId == -1))
-        }
+    /** [expectedIndex] is the question the tap belongs to; a stale or duplicate call is ignored. */
+    fun onAnswer(expectedIndex: Int, optionId: Int, isCorrect: Boolean) {
+        var answeredWord: Word? = null
         _state.update { s ->
-            val updated = s.questions.toMutableList()
-            updated[s.currentIndex] = current.copy(answered = true, selectedOptionId = optionId)
-            s.copy(
-                questions = updated,
-                correctCount = if (isCorrect) s.correctCount + 1 else s.correctCount,
-                wrongCount = if (!isCorrect) s.wrongCount + 1 else s.wrongCount
-            )
+            val next = s.withAnswer(expectedIndex, optionId, isCorrect)
+            answeredWord = if (next !== s) s.questions[expectedIndex].word else null
+            next
+        }
+        // Only the call that actually flipped the question to answered updates the SRS state.
+        answeredWord?.let { word ->
+            viewModelScope.launch {
+                repo.processAnswer(word, isCorrect, isQuiz = true, isNotSure = (optionId == -1))
+            }
         }
     }
 
     /**
-     * Advances ONLY if the quiz is still on [expectedIndex], the question the caller (the manual
-     * Next button or the auto-pass timer) belongs to. The check and the advance are one atomic
-     * `update`, so any second call for the same question — a double tap, a tap during the
-     * button's exit animation (it stays clickable while sliding out, with a stale closure), or a
-     * tap landing as the auto-pass timer fires — is a no-op instead of skipping a question.
+     * Advances ONLY if the quiz is still on [expectedIndex] and that question is answered (see
+     * [QuizUiState.advanceFrom]). The check and the advance are one atomic `update`, so a second
+     * call for the same question (a double tap, or a tap as the auto-pass timer fires) and a call
+     * that would skip an unanswered question are both no-ops.
      */
     fun onNext(expectedIndex: Int) {
         _state.update { it.advanceFrom(expectedIndex) }
     }
 
-    companion object {
-        private const val REVIEW_WORD_COUNT = 10
-    }
 }
