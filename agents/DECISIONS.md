@@ -5,6 +5,9 @@ Important decisions, newest on top. Format: `## YYYY-MM-DD — decision` then wh
 ## 2026-09-24 — The Manager does the final merge and every version
 QA no longer pushes to the working branch. It pushes to the feature branch it's reviewing, or to `qa/<topic>`. The Developer pushes to `feature/<name>`. The Manager gives the final verdict, merges into `claude/charming-planck-v3dszd`, and creates every version and release (releases need the owner's approval). Decided by the owner.
 
+## 2026-10-29 — v1.1.8 released; selection trade-off; label back to "חזרה"
+The Manager chose the balanced selection setting (due 25% / Practice 40%, recent cap 35%: ~25% overlap, simulated retention 52→58) over heavier repetition, which hurt retention. The owner renamed "תרגול" back to "חזרה" / "Review" and approved the release.
+
 ## 2026-10-29 — Team rules in CLAUDE.md; MAFAM manager no longer a channel
 A root `CLAUDE.md` (auto-loaded by every session) holds the team rules: silent work, `.` replies even at wrap-up, one report by message to the Manager, and the Manager silent (`.`) until everyone has finished, then one summary to the owner in the Manager's own chat. The MAFAM manager is no longer the owner's channel until he says otherwise. Decided by the owner.
 

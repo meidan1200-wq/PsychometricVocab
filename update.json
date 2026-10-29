@@ -1,6 +1,6 @@
 {
-  "latest_version": "1.1.7",
-  "latest_version_code": 9,
-  "apk_url": "https://github.com/meidan1200-wq/PsychometricVocab/releases/download/v1.1.7/app-debug.apk",
-  "release_notes": "Cloud backup: sign in with Google in Profile to back up your progress. Your progress is backed up on the phone before updating. Fixes: auto pass no longer skips a question, status bar readable on all phones."
+  "latest_version": "1.1.8",
+  "latest_version_code": 10,
+  "apk_url": "https://github.com/meidan1200-wq/PsychometricVocab/releases/download/v1.1.8/app-debug.apk",
+  "release_notes": "Smarter word selection: words you missed and recent words come back, with spaced review and new words mixed in. Review adapts to your daily practice. 'Another round' on the results screen. Auto pass no longer skips questions."
 }

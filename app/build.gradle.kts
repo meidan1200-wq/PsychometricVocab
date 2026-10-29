@@ -19,8 +19,8 @@ android {
         applicationId = "com.example.psychometricvocab"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "1.1.7"
+        versionCode = 10
+        versionName = "1.1.8"
         // Needed for the new instrumented MigrationTest (AndroidJUnit4); nothing used it before.
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
