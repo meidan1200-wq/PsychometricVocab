@@ -6,6 +6,7 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.provider.Settings
 import android.widget.Toast
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -14,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -69,8 +71,16 @@ fun CloudBackupRow(modifier: Modifier = Modifier, vm: SyncViewModel = viewModel(
         )
     }
 
+    // A long press (signed in only) opens the developer screen for the cloud layout migration.
+    var showLayoutTool by remember { mutableStateOf(false) }
+    if (showLayoutTool && user != null) CloudLayoutDialog(onDismiss = { showLayoutTool = false })
+
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .pointerInput(user != null) {
+                detectTapGestures(onLongPress = { if (user != null) showLayoutTool = true })
+            },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = White)
     ) {

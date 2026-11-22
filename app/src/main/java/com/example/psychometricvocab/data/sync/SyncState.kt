@@ -26,6 +26,44 @@ class SyncState(private val prefs: SharedPreferences) {
         prefs.edit().putLong(fullKey(uid), millis).apply()
     }
 
+    // ---- layout v2: its own cursors (one per source: words, days), full-pull time, and the layout last seen ----
+
+    fun v2Cursor(uid: String, source: String): Long? = long(v2CursorKey(uid, source))
+
+    fun setV2Cursor(uid: String, source: String, micros: Long) {
+        prefs.edit().putLong(v2CursorKey(uid, source), micros).apply()
+    }
+
+    fun lastFullPullV2At(uid: String, source: String): Long? = long("sync_full_at_v2${source}_$uid")
+
+    fun setLastFullPullV2At(uid: String, source: String, millis: Long) {
+        prefs.edit().putLong("sync_full_at_v2${source}_$uid", millis).apply()
+    }
+
+    /** The layout the account was last seen in; used when the cloud can't be asked. */
+    fun lastLayout(uid: String): Layout? = prefs.getString("sync_layout_v1_$uid", null)?.let { Layout.parse(it) }
+
+    fun setLastLayout(uid: String, layout: Layout) {
+        prefs.edit().putString("sync_layout_v1_$uid", layout.wire).apply()
+    }
+
+    fun lastDeviceRegisteredAt(uid: String): Long? = long("sync_device_at_v1_$uid")
+
+    fun setLastDeviceRegisteredAt(uid: String, millis: Long) {
+        prefs.edit().putLong("sync_device_at_v1_$uid", millis).apply()
+    }
+
+    /** A random id for this install, kept for good: the part after "vocab-" in the device registry. */
+    @Synchronized
+    fun deviceId(): String =
+        prefs.getString("sync_device_id_v1", null) ?: java.util.UUID.randomUUID().toString().replace("-", "").take(12).also {
+            prefs.edit().putString("sync_device_id_v1", it).apply()
+        }
+
+    private fun long(key: String): Long? = prefs.takeIf { it.contains(key) }?.getLong(key, 0L)
+
+    private fun v2CursorKey(uid: String, source: String) = "sync_cursor_v2${source}_$uid"
+
     /** Remember that this word (and today's activity day) changed locally and still has to be pushed. */
     @Synchronized
     fun addPending(uid: String, stableId: String, day: String) {

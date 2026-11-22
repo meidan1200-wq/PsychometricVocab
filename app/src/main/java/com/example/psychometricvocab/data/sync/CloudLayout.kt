@@ -1,0 +1,170 @@
+package com.example.psychometricvocab.data.sync
+
+import com.example.psychometricvocab.data.Word
+
+/**
+ * Which cloud layout an account is in, read from users/{uid} apps.vocab.layout:
+ *  - [V1]: the flat collection users/{uid}/progress, exactly as before. A missing entry, or a
+ *    value this build doesn't know, means V1, so an account nobody migrated behaves as it always did;
+ *  - [DUAL]: the app reads and writes BOTH layouts (a device that has not updated keeps working);
+ *  - [V2]: the app reads and writes only its v2 space, users/{uid}/apps/vocab/...
+ */
+enum class Layout(val wire: String) {
+    V1("v1"), DUAL("dual"), V2("v2");
+
+    val readsV1 get() = this != V2
+    val readsV2 get() = this != V1
+    val writesV1 get() = this != V2
+    val writesV2 get() = this != V1
+
+    companion object {
+        fun parse(value: String?): Layout = values().firstOrNull { it.wire == value } ?: V1
+    }
+}
+
+/**
+ * The v2 layout as pure functions (unit-tested; no Firebase types). The contract is MAFAM's
+ * "Contract for both apps" in docs/progress-store-design.md; the field list was settled with
+ * MAFAM's sync session.
+ *
+ *   users/{uid}/apps/vocab/words/{bucket}   one document per track and unit:
+ *       { s: <server time>, t: <track>, u: <unit>, w: { "<memberKey>": { k: <stableId>, <progress>, updatedAt } } }
+ *   users/{uid}/apps/vocab/days/{yyyy-mm}   one document per month: { s: <server time>, d: { "DD": count } }
+ *
+ * Writes only ever touch the members that changed (a merge of the nested map): never a whole bucket.
+ * `s` is the cursor (server time); `updatedAt` stays the device clock, for last-write-wins only.
+ */
+object CloudLayout {
+    /** A bucket document larger than this is refused and its data stays local. */
+    const val MAX_BUCKET_BYTES = 700 * 1024
+
+    /** The schema number a device reports for itself in users/{uid} devices. */
+    const val SCHEMA = 2
+
+    /** Words the local list can't place in a track and unit (none expected). */
+    const val UNPLACED_BUCKET = "other-u0"
+
+    /** Upper bound of one member's stored size: key, nine small fields, with field names. */
+    const val MEMBER_BYTES_UPPER = 320
+
+    data class Place(val track: String, val unit: Int)
+
+    fun bucketId(place: Place) = "${place.track}-u${place.unit}"
+
+    /** A field-path-safe key for a word: a letter first, no hyphen. Unique because stableIds are. */
+    fun memberKey(stableId: String) = "w" + stableId.replace('-', '_')
+
+    fun dayDocId(isoDate: String) = isoDate.substring(0, 7)
+
+    fun dayKey(isoDate: String) = isoDate.substring(8, 10)
+
+    fun isoDate(docId: String, key: String) = "$docId-$key"
+
+    private val ISO = Regex("""\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])""")
+
+    fun isIsoDate(s: String) = ISO.matches(s)
+
+    /** stableId -> where it lives, from the phone's own word list. */
+    fun placement(words: List<Word>): Map<String, Place> {
+        val out = HashMap<String, Place>(words.size * 2)
+        for (w in words) w.stableId?.let { out[it] = Place(w.track, w.unit) }
+        return out
+    }
+
+    /** How many words each bucket can ever hold (all the phone's words of that track and unit). */
+    fun capacities(words: List<Word>): Map<String, Int> =
+        words.filter { it.stableId != null }.groupingBy { bucketId(Place(it.track, it.unit)) }.eachCount()
+
+    // ---- member <-> record ----
+
+    fun memberFields(r: SyncRecord): Map<String, Any> = mapOf(
+        "k" to r.stableId,
+        "srsScore" to r.srsScore.toDouble(),
+        "easeFactor" to r.easeFactor.toDouble(),
+        "interval" to r.interval,
+        "nextReviewDate" to r.nextReviewDate,
+        "correctCount" to r.correctCount,
+        "wrongCount" to r.wrongCount,
+        "isKnown" to r.isKnown,
+        "updatedAt" to r.updatedAt
+    )
+
+    /** The record a member holds, or null if it is missing a field (never guessed). */
+    fun recordOf(member: Map<*, *>): SyncRecord? {
+        fun num(k: String) = member[k] as? Number
+        return SyncRecord(
+            stableId = member["k"] as? String ?: return null,
+            srsScore = num("srsScore")?.toFloat() ?: return null,
+            easeFactor = num("easeFactor")?.toFloat() ?: return null,
+            interval = num("interval")?.toInt() ?: return null,
+            nextReviewDate = num("nextReviewDate")?.toLong() ?: return null,
+            correctCount = num("correctCount")?.toInt() ?: return null,
+            wrongCount = num("wrongCount")?.toInt() ?: return null,
+            isKnown = member["isKnown"] as? Boolean ?: return null,
+            updatedAt = num("updatedAt")?.toLong() ?: return null
+        )
+    }
+
+    // ---- bucket writes ----
+
+    /** One bucket's merge: only these members are written (plus s, t, u by the cloud layer). */
+    data class BucketWrite(val id: String, val track: String?, val unit: Int?, val members: Map<String, Map<String, Any>>)
+
+    data class BucketPlan(val writes: List<BucketWrite>, val refused: List<String>, val unplaced: List<String>)
+
+    /**
+     * Groups [records] into per-bucket merges. A word [placeOf] can't place goes to
+     * [UNPLACED_BUCKET] (reported in [BucketPlan.unplaced], never dropped). A bucket whose possible
+     * size ([capacity] words, at the upper bound per member) is over [MAX_BUCKET_BYTES] is refused:
+     * nothing is written for it and its id is in [BucketPlan.refused], the data stays local.
+     */
+    fun planWrites(
+        records: List<SyncRecord>,
+        placeOf: Map<String, Place>,
+        capacity: Map<String, Int>
+    ): BucketPlan {
+        val byBucket = LinkedHashMap<String, MutableMap<String, Map<String, Any>>>()
+        val places = HashMap<String, Place?>()
+        val unplaced = ArrayList<String>()
+        for (r in records) {
+            val place = placeOf[r.stableId]
+            val id = if (place == null) { unplaced.add(r.stableId); UNPLACED_BUCKET } else bucketId(place)
+            places[id] = place
+            byBucket.getOrPut(id) { LinkedHashMap() }[memberKey(r.stableId)] = memberFields(r)
+        }
+        val refused = ArrayList<String>()
+        val writes = ArrayList<BucketWrite>()
+        for ((id, members) in byBucket) {
+            val possible = maxOf(capacity[id] ?: 0, members.size)
+            if (possible.toLong() * MEMBER_BYTES_UPPER > MAX_BUCKET_BYTES) { refused.add(id); continue }
+            val place = places[id]
+            writes.add(BucketWrite(id, place?.track, place?.unit, members))
+        }
+        return BucketPlan(writes, refused, unplaced)
+    }
+
+    /** The conservative size of a bucket document holding [members] words. */
+    fun estimateBucketBytes(members: Int): Long = members.toLong() * MEMBER_BYTES_UPPER
+
+    // ---- days ----
+
+    /** ISO date -> count, grouped as month document -> (DD -> count). Counts below 1 and bad dates are skipped. */
+    fun groupDays(counts: Map<String, Int>): Map<String, Map<String, Int>> {
+        val out = LinkedHashMap<String, MutableMap<String, Int>>()
+        for ((iso, n) in counts) {
+            if (n < 1 || !isIsoDate(iso)) continue
+            out.getOrPut(dayDocId(iso)) { LinkedHashMap() }[dayKey(iso)] = n
+        }
+        return out
+    }
+
+    /** The inverse of [groupDays]. */
+    fun flattenDays(days: Map<String, Map<String, Int>>): Map<String, Int> {
+        val out = HashMap<String, Int>()
+        for ((docId, d) in days) for ((key, n) in d) {
+            val iso = isoDate(docId, key)
+            if (isIsoDate(iso)) out[iso] = n
+        }
+        return out
+    }
+}

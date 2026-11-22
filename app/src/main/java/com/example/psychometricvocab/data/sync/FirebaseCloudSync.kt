@@ -24,6 +24,7 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.Source
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -160,7 +161,7 @@ class FirebaseCloudSync private constructor(private val appContext: Context) : C
         }
     }
 
-    override suspend fun pull(sinceMicros: Long?): RemoteProgress? {
+    override suspend fun pull(sinceMicros: Long?, stampClock: Boolean): RemoteProgress? {
         val uid = auth.currentUser?.uid ?: return null
         return try {
             val col = progressCollection(uid)
@@ -170,7 +171,7 @@ class FirebaseCloudSync private constructor(private val appContext: Context) : C
                 // Full pull. Stamp a clock document FIRST: its serverUpdatedAt comes back in this
                 // very read, so the cursor can be set even when every real document predates this
                 // version (none has a serverUpdatedAt), and any change after it is > the cursor.
-                stampClockDocument(col, uid)
+                if (stampClock) stampClockDocument(col, uid)
                 col.whereEqualTo("app", APP).get(Source.SERVER).await()
             } else {
                 changedSince(col, sinceMicros).get(Source.SERVER).await()
@@ -191,6 +192,132 @@ class FirebaseCloudSync private constructor(private val appContext: Context) : C
             callback(snap.toRemoteProgress())
         }
         return { reg.remove() }
+    }
+
+    // ---- layout v2: users/{uid}/apps/vocab/{words,days}, and the root document users/{uid} ----
+
+    private fun userDoc(uid: String) = db.collection("users").document(uid)
+    private fun vocabSpace(uid: String) = userDoc(uid).collection("apps").document(APP)
+    private fun wordsCollection(uid: String) = vocabSpace(uid).collection("words")
+    private fun daysCollection(uid: String) = vocabSpace(uid).collection("days")
+
+    private fun serverStamp(micros: Long) = Timestamp(SyncCursor.secondsOf(micros), SyncCursor.nanosOf(micros))
+
+    override suspend fun readLayout(): Layout? {
+        val uid = auth.currentUser?.uid ?: return null
+        return try {
+            val snap = userDoc(uid).get(Source.SERVER).await()
+            val vocab = (snap.get("apps") as? Map<*, *>)?.get(APP) as? Map<*, *>
+            Layout.parse(vocab?.get("layout") as? String)
+        } catch (e: Exception) {
+            Log.w(TAG, "could not read the layout", e)
+            null
+        }
+    }
+
+    override suspend fun pullV2(sinceWordsMicros: Long?, sinceDaysMicros: Long?): RemoteV2? {
+        val uid = auth.currentUser?.uid ?: return null
+        return try {
+            val wordsQuery: Query = wordsCollection(uid).let { c ->
+                if (sinceWordsMicros == null) c else c.whereGreaterThan("s", serverStamp(sinceWordsMicros))
+            }
+            val daysQuery: Query = daysCollection(uid).let { c ->
+                if (sinceDaysMicros == null) c else c.whereGreaterThan("s", serverStamp(sinceDaysMicros))
+            }
+            val words = wordsQuery.get(Source.SERVER).await()
+            val days = daysQuery.get(Source.SERVER).await()
+            RemoteV2(
+                words = words.documents.flatMap { doc ->
+                    (doc.get("w") as? Map<*, *>)?.values.orEmpty().mapNotNull { (it as? Map<*, *>)?.let(CloudLayout::recordOf) }
+                },
+                activity = CloudLayout.flattenDays(
+                    days.documents.associate { doc ->
+                        doc.id to (doc.get("d") as? Map<*, *>).orEmpty().mapNotNull { (k, v) ->
+                            val key = k as? String ?: return@mapNotNull null
+                            val n = (v as? Number)?.toInt() ?: return@mapNotNull null
+                            key to n
+                        }.toMap()
+                    }
+                ),
+                newestWordsMicros = words.newestServerMicros(),
+                newestDaysMicros = days.newestServerMicros(),
+                docsRead = words.size() + days.size()
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "v2 pull failed or offline; changing nothing", e)
+            null
+        }
+    }
+
+    private fun QuerySnapshot.newestServerMicros(): Long? =
+        documents.mapNotNull { it.getTimestamp("s") }.maxOfOrNull { SyncCursor.toMicros(it.seconds, it.nanoseconds) }
+
+    override suspend fun pushBuckets(writes: List<CloudLayout.BucketWrite>) {
+        val uid = auth.currentUser?.uid ?: return
+        if (writes.isEmpty()) return
+        val col = wordsCollection(uid)
+        // A merge of the nested map: only these members are written, the rest of the bucket is
+        // untouched, and a member never half-merges with an older copy of itself (each is written whole).
+        writes.chunked(400).forEach { chunk ->
+            val batch = db.batch()
+            chunk.forEach { w ->
+                val doc = HashMap<String, Any>()
+                doc["s"] = FieldValue.serverTimestamp()
+                w.track?.let { doc["t"] = it }
+                w.unit?.let { doc["u"] = it }
+                doc["w"] = w.members
+                batch.set(col.document(w.id), doc, SetOptions.merge())
+            }
+            withTimeoutOrNull(PUSH_WAIT_MS) { batch.commit().await() }
+        }
+    }
+
+    override suspend fun pushDays(days: Map<String, Map<String, Int>>) {
+        val uid = auth.currentUser?.uid ?: return
+        if (days.isEmpty()) return
+        val col = daysCollection(uid)
+        days.entries.chunked(400).forEach { chunk ->
+            val batch = db.batch()
+            chunk.forEach { (month, d) ->
+                batch.set(col.document(month), mapOf("s" to FieldValue.serverTimestamp(), "d" to d), SetOptions.merge())
+            }
+            withTimeoutOrNull(PUSH_WAIT_MS) { batch.commit().await() }
+        }
+    }
+
+    override suspend fun registerDevice(deviceId: String, name: String) {
+        val uid = auth.currentUser?.uid ?: return
+        withTimeoutOrNull(PUSH_WAIT_MS) {
+            userDoc(uid).set(
+                mapOf(
+                    "devices" to mapOf(
+                        "$APP-$deviceId" to mapOf(
+                            "app" to APP,
+                            "name" to name,
+                            "schema" to CloudLayout.SCHEMA,
+                            "lastSeen" to FieldValue.serverTimestamp()
+                        )
+                    )
+                ),
+                SetOptions.merge()
+            ).await()
+        }
+    }
+
+    override suspend fun setLayoutEntry(layout: Layout, migration: Map<String, Any>) {
+        val uid = auth.currentUser?.uid ?: return
+        userDoc(uid).set(
+            mapOf(
+                "apps" to mapOf(
+                    APP to mapOf(
+                        "layout" to layout.wire,
+                        "migratedAt" to FieldValue.serverTimestamp(),
+                        "migration" to migration
+                    )
+                )
+            ),
+            SetOptions.merge()
+        ).await()
     }
 
     /**

@@ -16,6 +16,18 @@ data class RemoteProgress(
     val docsRead: Int = 0
 )
 
+/**
+ * What a v2 pull returned: words from users/{uid}/apps/vocab/words and activity days from .../days.
+ * Each source has its own cursor ([newestWordsMicros], [newestDaysMicros]: the newest `s` seen).
+ */
+data class RemoteV2(
+    val words: List<SyncRecord>,
+    val activity: Map<String, Int>,
+    val newestWordsMicros: Long?,
+    val newestDaysMicros: Long?,
+    val docsRead: Int
+)
+
 /** The signed-in cloud account (display only). */
 data class SyncUser(val uid: String, val email: String?)
 
@@ -54,9 +66,10 @@ interface CloudSync {
      * those whose server-side change time (`serverUpdatedAt`) is after it (see [SyncCursor]).
      * Returns null if the server couldn't be reached (offline, not signed in, error) — NOT an
      * empty list: "couldn't look" must never be mistaken for "the cloud has nothing", or a sync
-     * pass would upload over newer remote data.
+     * pass would upload over newer remote data. A full pull writes one clock document first
+     * unless [stampClock] is false (the migration's dry run must write nothing).
      */
-    suspend fun pull(sinceMicros: Long?): RemoteProgress?
+    suspend fun pull(sinceMicros: Long?, stampClock: Boolean = true): RemoteProgress?
 
     /** Queue these per-day activity counts (ISO date -> answers) for upload. Never deletes. */
     suspend fun pushActivity(counts: Map<String, Int>)
@@ -67,6 +80,26 @@ interface CloudSync {
      * Nothing in the app calls this today.
      */
     fun onChange(sinceMicros: Long?, callback: (RemoteProgress) -> Unit): () -> Unit
+
+    // ---- layout v2 (see CloudLayout). Nothing here is called while an account is on v1. ----
+
+    /** The account's layout from users/{uid} apps.vocab.layout; a missing entry is V1; null if it can't be read now. */
+    suspend fun readLayout(): Layout?
+
+    /** The v2 space, all of it when a cursor is null, else only documents with `s` after it. Null if unreachable. */
+    suspend fun pullV2(sinceWordsMicros: Long?, sinceDaysMicros: Long?): RemoteV2?
+
+    /** Merge these members into their buckets (never a whole bucket). Works offline like [push]. */
+    suspend fun pushBuckets(writes: List<CloudLayout.BucketWrite>)
+
+    /** Merge activity counts into the month documents: month id -> (DD -> count). */
+    suspend fun pushDays(days: Map<String, Map<String, Int>>)
+
+    /** Merge this device into users/{uid} devices.vocab-<id> (schema 2, lastSeen). */
+    suspend fun registerDevice(deviceId: String, name: String)
+
+    /** Merge users/{uid} apps.vocab = { layout, migratedAt, migration }. Only the migration tool calls this, on an explicit confirmation. */
+    suspend fun setLayoutEntry(layout: Layout, migration: Map<String, Any>)
 }
 
 /** Used when the build has no Firebase config: the app behaves exactly as before. */
@@ -77,7 +110,13 @@ object UnavailableCloudSync : CloudSync {
     override suspend fun signIn(activity: Activity): SignInResult = SignInResult.Unavailable
     override suspend fun signOut() {}
     override suspend fun push(records: List<SyncRecord>) {}
-    override suspend fun pull(sinceMicros: Long?): RemoteProgress? = null
+    override suspend fun pull(sinceMicros: Long?, stampClock: Boolean): RemoteProgress? = null
     override suspend fun pushActivity(counts: Map<String, Int>) {}
     override fun onChange(sinceMicros: Long?, callback: (RemoteProgress) -> Unit): () -> Unit = {}
+    override suspend fun readLayout(): Layout? = Layout.V1
+    override suspend fun pullV2(sinceWordsMicros: Long?, sinceDaysMicros: Long?): RemoteV2? = null
+    override suspend fun pushBuckets(writes: List<CloudLayout.BucketWrite>) {}
+    override suspend fun pushDays(days: Map<String, Map<String, Int>>) {}
+    override suspend fun registerDevice(deviceId: String, name: String) {}
+    override suspend fun setLayoutEntry(layout: Layout, migration: Map<String, Any>) {}
 }

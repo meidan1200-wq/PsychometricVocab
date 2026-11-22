@@ -44,15 +44,25 @@ object SyncCursor {
         return PullMode.Incremental(cursorMicros)
     }
 
+    /** [mode] for one source, as a yes/no: does it need a full pull? */
+    fun isFull(cursorMicros: Long?, lastFullPullAt: Long?, now: Long, forceFull: Boolean = false): Boolean =
+        mode(cursorMicros, lastFullPullAt, now, forceFull) is PullMode.Full
+
     /**
-     * The cursor after a pass: the newest server time among the documents read. A pass that read
-     * nothing, or nothing with a server time, keeps the current cursor (it never goes back, and it
-     * is never invented).
+     * The cursor after a pass: the newest server time among the documents read, less [marginMicros].
+     * A pass that read nothing, or nothing with a server time, keeps the current cursor (it never
+     * goes back, and it is never invented).
      */
-    fun advance(current: Long?, seenMicros: Collection<Long>): Long? {
-        val newest = seenMicros.maxOrNull() ?: return current
+    fun advance(current: Long?, seenMicros: Collection<Long>, marginMicros: Long = 0L): Long? {
+        val newest = (seenMicros.maxOrNull() ?: return current) - marginMicros
         return if (current == null || newest > current) newest else current
     }
+
+    /**
+     * The v2 layout's contract keeps the cursor 5 s behind the newest server time seen (a few
+     * documents are read twice; a commit that lands just behind another is never skipped).
+     */
+    const val V2_MARGIN_MICROS = 5_000_000L
 
     fun toMicros(seconds: Long, nanos: Int): Long = seconds * 1_000_000L + nanos / 1_000
 
