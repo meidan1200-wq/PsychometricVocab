@@ -1,6 +1,6 @@
 {
-  "latest_version": "1.1.9",
-  "latest_version_code": 11,
-  "apk_url": "https://github.com/meidan1200-wq/PsychometricVocab/releases/download/v1.1.9/app-debug.apk",
-  "release_notes": "Smoother quiz: the word card's shadow no longer flickers, and the word and answers change together. Faster first launch."
+  "latest_version": "1.1.10",
+  "latest_version_code": 12,
+  "apk_url": "https://github.com/meidan1200-wq/PsychometricVocab/releases/download/v1.1.10/app-debug.apk",
+  "release_notes": "Sync repair: restores your cloud progress from this phone once, and old data can no longer overwrite newer progress."
 }

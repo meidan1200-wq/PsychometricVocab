@@ -22,7 +22,7 @@ object SyncCursor {
      * an older build (no `serverUpdatedAt`) wrote after this phone's cursor was set, which an
      * incremental pull can't see.
      */
-    const val FULL_RESYNC_AFTER_MS = 30L * 24 * 60 * 60 * 1000
+    const val FULL_RESYNC_AFTER_MS = 7L * 24 * 60 * 60 * 1000
 
     sealed interface PullMode {
         /** Read every vocab document, as before. */
