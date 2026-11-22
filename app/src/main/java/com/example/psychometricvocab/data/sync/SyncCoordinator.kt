@@ -15,14 +15,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Glue between the local Room words and a [CloudSync]. All of it runs quietly in the background
  * and the app works exactly as before if sync is unavailable, signed out, or offline.
  *
- *  - on app start and right after sign-in: one reconcile pass (pull, then apply newer remote /
- *    upload newer local), see [SyncMerge.reconcile];
+ *  - on app start and right after sign-in: one reconcile pass. A sign-in, a phone with no cursor
+ *    yet, or a long gap since the last one reads the whole cloud ("full"); every other start
+ *    reads only what changed on the server since this phone last looked ("incremental", see
+ *    [SyncCursor]), and uploads only what changed here since it last pushed (see [SyncState]);
  *  - after each answer: that word is pushed, debounced so a quiz of rapid answers is one batch.
  *
  * Nothing here ever deletes remote data, and a pass that can't reach the server (pull() == null)
@@ -30,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class SyncCoordinator private constructor(context: Context) {
     private val appContext = context.applicationContext
+
     // Creating the Firebase Auth and Firestore handles is slow on a cold first launch; MainActivity
     // builds this coordinator on a background thread at start-up so the first screen never waits.
     val cloud: CloudSync = StartupTrace.time("Firebase Auth + Firestore create") {
@@ -39,9 +41,9 @@ class SyncCoordinator private constructor(context: Context) {
     private val dao: WordDao get() = VocabDatabase.getInstance(appContext).wordDao()
     private val activityLog = ActivityLog(appContext)
     private val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val state = SyncState(prefs)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val passLock = Mutex()
-    private val dirty = ConcurrentHashMap.newKeySet<String>()
     @Volatile private var pushJob: Job? = null
 
     /** Called once from MainActivity: catch up with the cloud if already signed in. */
@@ -51,7 +53,9 @@ class SyncCoordinator private constructor(context: Context) {
 
     suspend fun signIn(activity: Activity): SignInResult {
         val result = cloud.signIn(activity)
-        if (result is SignInResult.Success) scope.launch { syncPass() }
+        // Always a FULL pass after a sign-in: this phone may have changed while it was signed out,
+        // and nothing recorded what, so every local word has to be compared with the cloud.
+        if (result is SignInResult.Success) scope.launch { syncPass(forceFull = true) }
         return result
     }
 
@@ -60,50 +64,87 @@ class SyncCoordinator private constructor(context: Context) {
 
     /** Hook for VocabRepository.processAnswer: this word's progress just changed. */
     fun onWordChanged(stableId: String?) {
-        if (stableId == null || cloud.user.value == null) return
-        dirty.add(stableId)
+        val uid = cloud.user.value?.uid
+        if (stableId == null || uid == null) return
+        // Persisted before the debounce: if the process dies inside it, the next push or pass finds it.
+        state.addPending(uid, stableId, activityLog.todayIso())
         pushJob?.cancel()
         pushJob = scope.launch {
             delay(PUSH_DEBOUNCE_MS)
-            pushDirty()
+            pushPending()
         }
     }
 
-    private suspend fun pushDirty() {
-        val ids = dirty.toList()
-        if (ids.isEmpty()) return
-        dirty.removeAll(ids.toSet())
+    private suspend fun pushPending() {
+        val uid = cloud.user.value?.uid ?: return
+        val ids = state.pendingWords(uid)
+        val days = state.pendingDays(uid)
+        if (ids.isEmpty() && days.isEmpty()) return
         val records = ids.mapNotNull { id ->
             dao.getByStableId(id)?.takeIf { SyncMerge.hasProgress(it) && it.updatedAt > 0L }
                 ?.let(SyncMerge::toRecord)
         }
         try {
             cloud.push(records)
-            // Today's answer count rides along (recordAnswer already ran for this answer).
-            val today = activityLog.todayIso()
-            activityLog.getAllCounts()[today]?.takeIf { it > 0 }?.let { cloud.pushActivity(mapOf(today to it)) }
+            // The day counts ride along (recordAnswer already ran for these answers).
+            val counts = activityLog.getAllCounts()
+            val dayCounts = days.mapNotNull { day -> counts[day]?.takeIf { it > 0 }?.let { day to it } }.toMap()
+            if (dayCounts.isNotEmpty()) cloud.pushActivity(dayCounts)
+            // Handed to the SDK (which queues it offline): no longer ours to remember.
+            state.clearPending(uid, ids, days)
         } catch (e: Exception) {
-            Log.w(TAG, "push failed; will be reconciled on the next pass", e)
+            Log.w(TAG, "push failed; kept as pending for the next push or pass", e)
         }
     }
 
-    private suspend fun syncPass() = passLock.withLock {
+    private suspend fun syncPass(forceFull: Boolean = false) = passLock.withLock {
         val user = cloud.user.value ?: return@withLock
+        val uid = user.uid
         try {
+            val now = System.currentTimeMillis()
+            val cursor = state.cursor(uid)
+            val mode = SyncCursor.mode(cursor, state.lastFullPullAt(uid), now, forceFull)
+            val since = (mode as? SyncCursor.PullMode.Incremental)?.sinceMicros
+            val full = since == null
+            // What is pending as the pass starts is what it handles; anything that changes
+            // during it stays pending for the next push.
+            val pendingWords = state.pendingWords(uid)
+            val pendingDays = state.pendingDays(uid)
+
             // Couldn't reach the server: do nothing at all (see CloudSync.pull).
-            val remote = cloud.pull() ?: return@withLock
-            val first = !prefs.getBoolean(firstKey(user.uid), false)
-            val plan = SyncMerge.reconcile(dao.getSyncableWords(), remote.words, first, System.currentTimeMillis())
+            val remote = cloud.pull(since) ?: return@withLock
+
+            val first = full && !prefs.getBoolean(firstKey(uid), false)
+            val local = dao.getSyncableWords()
+            val plan = if (full) SyncMerge.reconcile(local, remote.words, first, now)
+            else SyncMerge.reconcileIncremental(local, remote.words, pendingWords, now)
             if (plan.localUpdates.isNotEmpty()) dao.updateWords(plan.localUpdates)
             if (plan.uploads.isNotEmpty()) cloud.push(plan.uploads)
 
             // Daily activity (it drives Practice's session size): merge by max per day, so counts
             // never go down on either side; only days with answers are uploaded.
-            val activity = ActivityMerge.reconcile(activityLog.getAllCounts(), remote.activity)
+            val counts = activityLog.getAllCounts()
+            val activity = if (full) ActivityMerge.reconcile(counts, remote.activity)
+            else ActivityMerge.reconcileIncremental(counts, remote.activity, pendingDays)
             activityLog.raiseTo(activity.raiseLocal)
             if (activity.uploads.isNotEmpty()) cloud.pushActivity(activity.uploads)
-            if (first) prefs.edit().putBoolean(firstKey(user.uid), true).apply()
-            Log.i(TAG, "sync pass: first=$first, ${plan.localUpdates.size} local row(s) updated from the cloud, ${plan.uploads.size} uploaded; activity: ${activity.raiseLocal.size} day(s) raised locally, ${activity.uploads.size} uploaded")
+
+            // Bookkeeping last, in this order: "first" and the full-pull time, then the cursor. A
+            // cursor means "everything up to here was applied and uploaded"; if the pass dies
+            // before it is saved, the next one just reads the same documents again.
+            state.clearPending(uid, pendingWords, pendingDays)
+            if (first) prefs.edit().putBoolean(firstKey(uid), true).apply()
+            if (full) state.setLastFullPullAt(uid, now)
+            val next = SyncCursor.advance(cursor, listOfNotNull(remote.newestServerMicros))
+            if (next != null && next != cursor) state.setCursor(uid, next)
+
+            Log.i(
+                TAG,
+                "sync pass: ${if (full) "FULL" else "incremental"}${if (forceFull) " (sign-in)" else ""}, " +
+                    "${remote.docsRead} doc(s) read, cursor ${cursor ?: "none"} -> ${next ?: "none"}, " +
+                    "${plan.localUpdates.size} local row(s) updated from the cloud, ${plan.uploads.size} uploaded; " +
+                    "activity: ${activity.raiseLocal.size} day(s) raised locally, ${activity.uploads.size} uploaded"
+            )
         } catch (e: Exception) {
             Log.w(TAG, "sync pass failed; local data untouched beyond what was already applied", e)
         }

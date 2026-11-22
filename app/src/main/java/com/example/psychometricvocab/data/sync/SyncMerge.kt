@@ -103,4 +103,24 @@ object SyncMerge {
         }
         return Plan(updates, uploads)
     }
+
+    /**
+     * One INCREMENTAL pass: [remoteChanges] are only the records that changed on the server since
+     * the cursor, not the whole cloud, so "no remote record" no longer means "the cloud lacks
+     * this word" and must not make every progressed word upload again. The pass therefore
+     * considers only the local words that appear in [remoteChanges] (apply if strictly newer,
+     * else upload if the phone is newer) and the ones in [pendingIds] (changed here and not yet
+     * handed to the cloud SDK: upload unless the cloud copy is newer). Same per-word rules as
+     * [reconcile]; every other word is left alone.
+     */
+    fun reconcileIncremental(
+        local: List<Word>,
+        remoteChanges: List<SyncRecord>,
+        pendingIds: Set<String>,
+        now: Long
+    ): Plan {
+        val relevant = HashSet<String>(pendingIds)
+        for (r in remoteChanges) relevant.add(r.stableId)
+        return reconcile(local.filter { it.stableId in relevant }, remoteChanges, isFirstSignIn = false, now = now)
+    }
 }
