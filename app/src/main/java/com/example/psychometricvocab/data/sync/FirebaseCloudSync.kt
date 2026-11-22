@@ -252,27 +252,28 @@ class FirebaseCloudSync private constructor(private val appContext: Context) : C
     private fun QuerySnapshot.newestServerMicros(): Long? =
         documents.mapNotNull { it.getTimestamp("s") }.maxOfOrNull { SyncCursor.toMicros(it.seconds, it.nanoseconds) }
 
+    /** The builders in CloudLayout mark the server's time with [CloudLayout.ServerTime]; this is where it becomes real. */
+    private fun resolve(v: Any?): Any? = when {
+        v === CloudLayout.ServerTime -> FieldValue.serverTimestamp()
+        v is Map<*, *> -> v.mapValues { resolve(it.value) }
+        else -> v
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun resolvedData(data: Map<String, Any>): Map<String, Any> = resolve(data) as Map<String, Any>
+
     override suspend fun pushBuckets(writes: List<CloudLayout.BucketWrite>) {
         val uid = auth.currentUser?.uid ?: return
         if (writes.isEmpty()) return
         val col = wordsCollection(uid)
-        // mergeFields with one dotted path per member (w.<key>): exactly these members are replaced,
-        // each WHOLE (an old sub-field cannot be left behind), and the rest of the bucket is untouched.
-        // The key starts with a letter and holds only [0-9a-f_], so the dotted path is valid. `s` is
-        // always in the mask: the rules require it to equal the server time on every write, and other
-        // devices' cursor queries only see a write that moved it.
+        // mergeFields with one dotted path per member: exactly these members are replaced, each
+        // WHOLE (an old sub-field cannot be left behind), the rest of the bucket is untouched, and
+        // `s` is in every write (see CloudLayout.bucketWrite).
         writes.chunked(400).forEach { chunk ->
             val batch = db.batch()
             chunk.forEach { w ->
-                val doc = HashMap<String, Any>()
-                val mask = ArrayList<String>()
-                doc["s"] = FieldValue.serverTimestamp()
-                mask.add("s")
-                w.track?.let { doc["t"] = it; mask.add("t") }
-                w.unit?.let { doc["u"] = it; mask.add("u") }
-                doc["w"] = w.members
-                w.members.keys.forEach { mask.add("w.$it") }
-                batch.set(col.document(w.id), doc, SetOptions.mergeFields(mask))
+                val doc = CloudLayout.bucketWrite(w)
+                batch.set(col.document(w.id), resolvedData(doc.data), SetOptions.mergeFields(doc.mergeFields!!))
             }
             withTimeoutOrNull(PUSH_WAIT_MS) { batch.commit().await() }
         }
@@ -285,7 +286,7 @@ class FirebaseCloudSync private constructor(private val appContext: Context) : C
         days.entries.chunked(400).forEach { chunk ->
             val batch = db.batch()
             chunk.forEach { (month, d) ->
-                batch.set(col.document(month), mapOf("s" to FieldValue.serverTimestamp(), "d" to d), SetOptions.merge())
+                batch.set(col.document(month), resolvedData(CloudLayout.dayWrite(d).data), SetOptions.merge())
             }
             withTimeoutOrNull(PUSH_WAIT_MS) { batch.commit().await() }
         }
@@ -294,36 +295,13 @@ class FirebaseCloudSync private constructor(private val appContext: Context) : C
     override suspend fun registerDevice(deviceId: String, name: String) {
         val uid = auth.currentUser?.uid ?: return
         withTimeoutOrNull(PUSH_WAIT_MS) {
-            userDoc(uid).set(
-                mapOf(
-                    "devices" to mapOf(
-                        "$APP-$deviceId" to mapOf(
-                            "app" to APP,
-                            "name" to name,
-                            "schema" to CloudLayout.SCHEMA,
-                            "lastSeen" to FieldValue.serverTimestamp()
-                        )
-                    )
-                ),
-                SetOptions.merge()
-            ).await()
+            userDoc(uid).set(resolvedData(CloudLayout.deviceWrite(deviceId, name)), SetOptions.merge()).await()
         }
     }
 
     override suspend fun setLayoutEntry(layout: Layout, migration: Map<String, Any>) {
         val uid = auth.currentUser?.uid ?: return
-        userDoc(uid).set(
-            mapOf(
-                "apps" to mapOf(
-                    APP to mapOf(
-                        "layout" to layout.wire,
-                        "migratedAt" to FieldValue.serverTimestamp(),
-                        "migration" to migration
-                    )
-                )
-            ),
-            SetOptions.merge()
-        ).await()
+        userDoc(uid).set(resolvedData(CloudLayout.layoutEntryWrite(layout, migration)), SetOptions.merge()).await()
     }
 
     /**

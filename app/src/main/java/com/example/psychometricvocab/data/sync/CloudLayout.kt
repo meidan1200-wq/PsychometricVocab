@@ -166,6 +166,58 @@ object CloudLayout {
     /** The conservative size of a bucket document holding [members] words. */
     fun estimateBucketBytes(members: Int): Long = members.toLong() * MEMBER_BYTES_UPPER
 
+    // ---- the documents, exactly as they are written (pure, so the contract is pinned by tests) ----
+
+    /** Stands for the server's own time inside a document built here; the cloud layer swaps in FieldValue.serverTimestamp(). */
+    object ServerTime
+
+    /** firestore.rules: at most this many days in a month document. */
+    const val MAX_DAYS_PER_MONTH = 31
+
+    /** [data] is merged only at [mergeFields]; null means a plain merge of everything in [data]. */
+    data class DocWrite(val data: Map<String, Any>, val mergeFields: List<String>?)
+
+    /**
+     * One bucket write. `s` is in the data AND the mask on EVERY write (the rules refuse a write
+     * without it, and another device's cursor query only sees a write that moved it); each changed
+     * member is its own dotted path `w.<key>`, so it is replaced whole and nothing else is touched;
+     * `t` and `u` are in the mask only when there is a value.
+     */
+    fun bucketWrite(w: BucketWrite): DocWrite {
+        val data = HashMap<String, Any>()
+        val mask = ArrayList<String>()
+        data["s"] = ServerTime
+        mask.add("s")
+        w.track?.let { data["t"] = it; mask.add("t") }
+        w.unit?.let { data["u"] = it; mask.add("u") }
+        data["w"] = w.members
+        w.members.keys.forEach { mask.add("w.$it") }
+        return DocWrite(data, mask)
+    }
+
+    /** One month document: `s` and `d`, merged per day. */
+    fun dayWrite(days: Map<String, Int>): DocWrite {
+        require(days.size <= MAX_DAYS_PER_MONTH) { "a month document holds at most $MAX_DAYS_PER_MONTH days" }
+        return DocWrite(mapOf("s" to ServerTime, "d" to days), null)
+    }
+
+    /**
+     * This device in users/{uid} devices. A NESTED map (merged), never a dotted path: the key
+     * `vocab-<id>` has a hyphen, which is not valid in a dotted path string.
+     */
+    fun deviceWrite(deviceId: String, name: String): Map<String, Any> = mapOf(
+        "devices" to mapOf(
+            "vocab-$deviceId" to mapOf("app" to "vocab", "name" to name, "schema" to SCHEMA, "lastSeen" to ServerTime)
+        )
+    )
+
+    /** This app's entry in users/{uid} apps; the root document allows only `schema`, `apps` and `devices`. */
+    fun layoutEntryWrite(layout: Layout, migration: Map<String, Any>): Map<String, Any> = mapOf(
+        "apps" to mapOf(
+            "vocab" to mapOf("layout" to layout.wire, "migratedAt" to ServerTime, "migration" to migration)
+        )
+    )
+
     // ---- days ----
 
     /** ISO date -> count, grouped as month document -> (DD -> count). Counts below 1 and bad dates are skipped. */

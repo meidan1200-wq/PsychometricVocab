@@ -141,6 +141,90 @@ class CloudLayoutTest {
         assertTrue(CloudLayout.isValidMemberKey(CloudLayout.memberKey("0123456789ab-2")))
     }
 
+    // ---- the documents as written: what firestore.rules requires ----
+
+    @Test
+    fun everyBucketWriteCarriesTheServerTimeInTheDataAndInTheMask() {
+        val write = CloudLayout.bucketWrite(
+            CloudLayout.BucketWrite("english-u1", "english", 1, mapOf("wa00000000001" to emptyMap(), "wb00000000002" to emptyMap()))
+        )
+        assertTrue(write.data["s"] === CloudLayout.ServerTime)
+        assertTrue("a merge without s is refused by the rules", "s" in write.mergeFields!!)
+        // even a write that only changes one member
+        val one = CloudLayout.bucketWrite(CloudLayout.BucketWrite("other-u0", null, null, mapOf("wa00000000001" to emptyMap())))
+        assertTrue("s" in one.mergeFields!! && one.data["s"] === CloudLayout.ServerTime)
+    }
+
+    @Test
+    fun aBucketWriteReplacesExactlyTheChangedMembersEachWhole() {
+        val members = mapOf("wa00000000001" to CloudLayout.memberFields(record("a00000000001")), "wb00000000002" to CloudLayout.memberFields(record("b00000000002")))
+        val write = CloudLayout.bucketWrite(CloudLayout.BucketWrite("hebrew-u4", "hebrew", 4, members))
+        // one dotted path per member (never "w" alone, which would replace the whole bucket)
+        assertEquals(listOf("s", "t", "u", "w.wa00000000001", "w.wb00000000002"), write.mergeFields)
+        assertFalse("w" in write.mergeFields!!)
+        // every mask path exists in the data, or Firestore refuses the write
+        for (path in write.mergeFields!!) {
+            val parts = path.split(".")
+            var cur: Any? = write.data
+            for (p in parts) cur = (cur as Map<*, *>)[p]
+            assertTrue("$path missing from the data", cur != null)
+        }
+        // and every dotted segment is a valid simple field name
+        assertTrue(write.mergeFields!!.drop(3).all { Regex("^w\\.[A-Za-z_][A-Za-z0-9_]*$").matches(it) })
+    }
+
+    @Test
+    fun trackAndUnitAreInTheMaskOnlyWhenThereIsAValue() {
+        val unplaced = CloudLayout.bucketWrite(CloudLayout.BucketWrite("other-u0", null, null, mapOf("wa00000000001" to emptyMap())))
+        assertEquals(listOf("s", "w.wa00000000001"), unplaced.mergeFields)
+        assertFalse(unplaced.data.containsKey("t") || unplaced.data.containsKey("u"))
+        // t is a string of at most 16 characters and u an int 0..999 under the rules
+        val placed = CloudLayout.bucketWrite(CloudLayout.BucketWrite("english-u10", "english", 10, emptyMap()))
+        assertTrue((placed.data["t"] as String).length <= 16)
+        assertTrue(placed.data["u"] as Int in 0..999)
+    }
+
+    @Test
+    fun theDeviceEntryIsANestedMapBecauseTheKeyHasAHyphen() {
+        val doc = CloudLayout.deviceWrite("abc123def456", "Pixel 8")
+        assertEquals("the root document allows only schema, apps and devices", setOf("devices"), doc.keys)
+        val devices = doc["devices"] as Map<*, *>
+        assertEquals(setOf("vocab-abc123def456"), devices.keys)
+        assertFalse("never a dotted path key", doc.keys.any { it.contains('.') })
+        val entry = devices["vocab-abc123def456"] as Map<*, *>
+        assertEquals(setOf("app", "name", "schema", "lastSeen"), entry.keys)
+        assertEquals("vocab", entry["app"])
+        assertEquals(2, entry["schema"])
+        assertTrue(entry["lastSeen"] === CloudLayout.ServerTime)
+    }
+
+    @Test
+    fun theRootDocumentIsWrittenOnlyUnderAppsVocab() {
+        val doc = CloudLayout.layoutEntryWrite(Layout.DUAL, mapOf("by" to "vocab-x", "backup" to "f.json", "counts" to mapOf("words" to 1)))
+        assertEquals(setOf("apps"), doc.keys)
+        val vocab = (doc["apps"] as Map<*, *>)
+        assertEquals(setOf("vocab"), vocab.keys)
+        val entry = vocab["vocab"] as Map<*, *>
+        assertEquals(setOf("layout", "migratedAt", "migration"), entry.keys)
+        assertEquals("dual", entry["layout"])
+        assertTrue(entry["migratedAt"] === CloudLayout.ServerTime)
+    }
+
+    @Test
+    fun aMonthDocumentCarriesSAndAtMost31Days() {
+        val all = (1..31).associate { "%02d".format(it) to it }
+        val doc = CloudLayout.dayWrite(all)
+        assertTrue(doc.data["s"] === CloudLayout.ServerTime)
+        assertNull("a plain merge of the days", doc.mergeFields)
+        assertEquals(31, (doc.data["d"] as Map<*, *>).size)
+        var refused = false
+        try { CloudLayout.dayWrite(all + ("32" to 1)) } catch (e: IllegalArgumentException) { refused = true }
+        assertTrue("32 days in one month document is refused", refused)
+        // a real month grouped from ISO dates can never exceed it
+        val month = (1..31).associate { "2026-12-%02d".format(it) to 5 }
+        assertEquals(31, CloudLayout.groupDays(month).getValue("2026-12").size)
+    }
+
     @Test
     fun theRealUnitsAreFarUnderTheGuard() {
         // the biggest real unit has 442 words
