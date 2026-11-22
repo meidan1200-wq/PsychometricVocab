@@ -92,8 +92,12 @@ class SyncCoordinator private constructor(context: Context) {
         try {
             // Couldn't reach the server: do nothing at all (see CloudSync.pull).
             val remote = cloud.pull() ?: return@withLock
+            val now = System.currentTimeMillis()
+            val local = dao.getSyncableWords()
+            // One-shot repair of the 22 Nov 2026 incident, BEFORE the merge (see SyncRepair).
+            val remoteWords = repairIfNeeded(user.uid, local, remote.words, now)
             val first = !prefs.getBoolean(firstKey(user.uid), false)
-            val plan = SyncMerge.reconcile(dao.getSyncableWords(), remote.words, first, System.currentTimeMillis())
+            val plan = SyncMerge.reconcile(local, remoteWords, first, now)
             if (plan.localUpdates.isNotEmpty()) dao.updateWords(plan.localUpdates)
             if (plan.uploads.isNotEmpty()) cloud.push(plan.uploads)
 
@@ -107,6 +111,30 @@ class SyncCoordinator private constructor(context: Context) {
         } catch (e: Exception) {
             Log.w(TAG, "sync pass failed; local data untouched beyond what was already applied", e)
         }
+    }
+
+    /**
+     * Once per account: replace the cloud's stale 22 Nov 2026 records with this phone's own state
+     * (see [SyncRepair]) and return the remote list the normal merge should use. Skipped on a
+     * device that doesn't hold the real progress. The flag is saved only after the uploads were
+     * handed to the SDK, so a failed push is simply tried again on the next pass.
+     */
+    private suspend fun repairIfNeeded(
+        uid: String,
+        local: List<com.example.psychometricvocab.data.Word>,
+        remote: List<SyncRecord>,
+        now: Long
+    ): List<SyncRecord> {
+        if (prefs.getBoolean(SyncRepair.flagKey(uid), false)) return remote
+        if (!SyncRepair.canRepairFrom(local)) {
+            Log.w(TAG, "repair: skipped, this device has no progress of its own or all of it carries the 22 Nov stamps, so it is not the one that holds the real progress; flag not set")
+            return remote
+        }
+        val fix = SyncRepair.plan(local, remote, now)
+        if (fix.uploads.isNotEmpty()) cloud.push(fix.uploads)
+        prefs.edit().putBoolean(SyncRepair.flagKey(uid), true).apply()
+        Log.i(TAG, "repair: ${fix.inWindow} remote in window, ${fix.uploads.size} uploaded, flag set")
+        return fix.remoteAfterRepair
     }
 
     private fun firstKey(uid: String) = "first_sync_done_$uid"
