@@ -15,10 +15,15 @@ import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseNetworkException
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.Source
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -146,6 +151,7 @@ class FirebaseCloudSync private constructor(private val appContext: Context) : C
                         "itemKey" to key,
                         "data" to mapOf("count" to count),
                         "updatedAt" to now,
+                        SERVER_TIME to FieldValue.serverTimestamp(),
                         "device" to "phone"
                     )
                 )
@@ -154,29 +160,80 @@ class FirebaseCloudSync private constructor(private val appContext: Context) : C
         }
     }
 
-    override suspend fun pull(): RemoteProgress? {
+    override suspend fun pull(sinceMicros: Long?): RemoteProgress? {
         val uid = auth.currentUser?.uid ?: return null
         return try {
+            val col = progressCollection(uid)
             // Source.SERVER: an offline/failed pull throws (-> null below), rather than silently
             // handing back a stale cache that would look like "remote has nothing".
-            val snap = progressCollection(uid).whereEqualTo("app", APP).get(Source.SERVER).await()
-            RemoteProgress(
-                words = snap.documents.mapNotNull { it.toRecord() },
-                activity = snap.documents.mapNotNull { it.toActivityDay() }.toMap()
-            )
+            val snap = if (sinceMicros == null) {
+                // Full pull. Stamp a clock document FIRST: its serverUpdatedAt comes back in this
+                // very read, so the cursor can be set even when every real document predates this
+                // version (none has a serverUpdatedAt), and any change after it is > the cursor.
+                stampClockDocument(col, uid)
+                col.whereEqualTo("app", APP).get(Source.SERVER).await()
+            } else {
+                changedSince(col, sinceMicros).get(Source.SERVER).await()
+            }
+            snap.toRemoteProgress()
         } catch (e: Exception) {
             Log.w(TAG, "pull failed or offline; changing nothing", e)
             null
         }
     }
 
-    override fun onChange(callback: (List<SyncRecord>) -> Unit): () -> Unit {
+    override fun onChange(sinceMicros: Long?, callback: (RemoteProgress) -> Unit): () -> Unit {
         val uid = auth.currentUser?.uid ?: return {}
-        val reg = progressCollection(uid).whereEqualTo("app", APP).addSnapshotListener { snap, err ->
+        val col = progressCollection(uid)
+        val query = if (sinceMicros == null) col.whereEqualTo("app", APP) else changedSince(col, sinceMicros)
+        val reg = query.addSnapshotListener { snap, err ->
             if (err != null || snap == null) return@addSnapshotListener
-            callback(snap.documents.mapNotNull { it.toRecord() })
+            callback(snap.toRemoteProgress())
         }
         return { reg.remove() }
+    }
+
+    /**
+     * Documents whose server change time is after [sinceMicros]. A range on ONE field needs no
+     * composite index (filtering on app == "vocab" as well would), so the app is checked on the
+     * client; only vocab documents carry serverUpdatedAt today, so nothing else is read.
+     */
+    private fun changedSince(col: CollectionReference, sinceMicros: Long): Query =
+        col.whereGreaterThan(
+            SERVER_TIME,
+            Timestamp(SyncCursor.secondsOf(sinceMicros), SyncCursor.nanosOf(sinceMicros))
+        )
+
+    private suspend fun stampClockDocument(col: CollectionReference, uid: String) {
+        try {
+            withTimeoutOrNull(PUSH_WAIT_MS) {
+                col.document(DOC_PREFIX + CLOCK_KEY).set(
+                    mapOf(
+                        "uid" to uid,
+                        "app" to APP,
+                        "itemKey" to CLOCK_KEY,
+                        "updatedAt" to System.currentTimeMillis(),
+                        SERVER_TIME to FieldValue.serverTimestamp(),
+                        "device" to "phone"
+                    )
+                ).await()
+            }
+        } catch (e: Exception) {
+            // Not fatal: without it a cursor can still come from the documents themselves.
+            Log.w(TAG, "could not stamp the sync clock document", e)
+        }
+    }
+
+    private fun QuerySnapshot.toRemoteProgress(): RemoteProgress {
+        val vocab = documents.filter { it.getString("app") == APP }
+        return RemoteProgress(
+            words = vocab.mapNotNull { it.toRecord() },
+            activity = vocab.mapNotNull { it.toActivityDay() }.toMap(),
+            // Every document read counts for the cursor (they were billed), whatever app wrote it.
+            newestServerMicros = documents.mapNotNull { it.getTimestamp(SERVER_TIME) }
+                .maxOfOrNull { SyncCursor.toMicros(it.seconds, it.nanoseconds) },
+            docsRead = size()
+        )
     }
 
     private fun SyncRecord.toDoc(uid: String): Map<String, Any> = mapOf(
@@ -193,6 +250,9 @@ class FirebaseCloudSync private constructor(private val appContext: Context) : C
             "isKnown" to isKnown
         ),
         "updatedAt" to updatedAt,
+        // The server's own clock at commit time: what incremental pulls (SyncCursor) key on.
+        // updatedAt stays the device clock, for last-write-wins.
+        SERVER_TIME to FieldValue.serverTimestamp(),
         "device" to "phone"
     )
 
@@ -228,6 +288,8 @@ class FirebaseCloudSync private constructor(private val appContext: Context) : C
         private const val APP = "vocab"
         private const val DOC_PREFIX = "vocab~"
         private const val ACTIVITY_PREFIX = "activity-"
+        private const val SERVER_TIME = "serverUpdatedAt"
+        private const val CLOCK_KEY = "sync-clock"
         private const val PUSH_WAIT_MS = 8_000L
 
         /** The Firebase-backed sync, or [UnavailableCloudSync] if this build has no Firebase config. */

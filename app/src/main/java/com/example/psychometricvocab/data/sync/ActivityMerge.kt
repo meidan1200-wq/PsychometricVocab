@@ -23,4 +23,19 @@ object ActivityMerge {
         }
         return Plan(raise, upload)
     }
+
+    /**
+     * The incremental pass: [remoteChanges] holds only the days that changed on the server since
+     * the cursor, so only those days and the [pendingDays] (changed here, not yet handed to the
+     * cloud SDK) are compared; a local day outside both is NOT re-uploaded just because the
+     * partial remote map doesn't list it.
+     */
+    fun reconcileIncremental(
+        local: Map<String, Int>,
+        remoteChanges: Map<String, Int>,
+        pendingDays: Set<String>
+    ): Plan {
+        val relevant = remoteChanges.keys + pendingDays
+        return reconcile(local.filterKeys { it in relevant }, remoteChanges)
+    }
 }
