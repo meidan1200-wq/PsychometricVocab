@@ -101,7 +101,31 @@ class CloudLayoutTest {
         val plan = CloudLayout.planWrites(listOf(record(ID_G)), emptyMap(), emptyMap())
         assertEquals(listOf(CloudLayout.UNPLACED_BUCKET), plan.writes.map { it.id })
         assertEquals(listOf(ID_G), plan.unplaced)
-        assertNull(plan.writes.single().track)
+        assertEquals("other", plan.writes.single().track)
+        assertEquals(0, plan.writes.single().unit)
+    }
+
+    @Test
+    fun theCatchAllBucketIsWrittenWithTrackOtherAndUnitZeroBecauseTheRulesRequireThem() {
+        assertEquals(CloudLayout.UNPLACED_BUCKET, CloudLayout.bucketId(CloudLayout.UNPLACED))
+        val plan = CloudLayout.planWrites(listOf(record(ID_G)), emptyMap(), emptyMap())
+        val write = CloudLayout.bucketWrite(plan.writes.single())
+        assertEquals("other-u0", plan.writes.single().id)
+        assertEquals("other", write.data["t"])
+        assertEquals(0, write.data["u"])
+        assertEquals(listOf("s", "t", "u", "w.${CloudLayout.memberKey(ID_G)}"), write.mergeFields)
+        // the rules: the id matches the bucket pattern, t is at most 16 characters, u is an int 0..999
+        assertTrue(Regex("^(hebrew|english|other)-u[0-9]{1,3}$").matches(plan.writes.single().id))
+        assertTrue((write.data["t"] as String).length <= 16)
+        assertTrue(write.data["u"] as Int in 0..999)
+    }
+
+    @Test
+    fun everyBucketPlanWriteHasATrackAndAUnit() {
+        val placed = mapOf(ID_A to Place("english", 1), ID_C to Place("hebrew", 2))
+        val plan = CloudLayout.planWrites(listOf(record(ID_A), record(ID_C), record(ID_G)), placed, emptyMap())
+        assertEquals(3, plan.writes.size)
+        assertTrue(plan.writes.all { it.track != null && it.unit != null })
     }
 
     @Test

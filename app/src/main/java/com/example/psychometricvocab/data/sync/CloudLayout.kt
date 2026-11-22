@@ -52,6 +52,12 @@ object CloudLayout {
     /** Words the local list can't place in a track and unit (none expected). */
     const val UNPLACED_BUCKET = "other-u0"
 
+    /**
+     * Where an unplaceable word lives: track "other", unit 0. It is a Place like any other so its bucket
+     * is written with `t` = "other" and `u` = 0; firestore.rules refuses a bucket without them.
+     */
+    val UNPLACED = Place("other", 0)
+
     /** Upper bound of one member's stored size: key, nine small fields, with field names. */
     const val MEMBER_BYTES_UPPER = 320
 
@@ -142,13 +148,15 @@ object CloudLayout {
         capacity: Map<String, Int>
     ): BucketPlan {
         val byBucket = LinkedHashMap<String, MutableMap<String, Map<String, Any>>>()
-        val places = HashMap<String, Place?>()
+        val places = HashMap<String, Place>()
         val unplaced = ArrayList<String>()
         val invalid = ArrayList<String>()
         for (r in records) {
             if (!isValidMemberKey(memberKey(r.stableId))) { invalid.add(r.stableId); continue }
-            val place = placeOf[r.stableId]
-            val id = if (place == null) { unplaced.add(r.stableId); UNPLACED_BUCKET } else bucketId(place)
+            val known = placeOf[r.stableId]
+            if (known == null) unplaced.add(r.stableId)
+            val place = known ?: UNPLACED
+            val id = bucketId(place)
             places[id] = place
             byBucket.getOrPut(id) { LinkedHashMap() }[memberKey(r.stableId)] = memberFields(r)
         }
@@ -157,8 +165,8 @@ object CloudLayout {
         for ((id, members) in byBucket) {
             val possible = maxOf(capacity[id] ?: 0, members.size)
             if (possible > MAX_MEMBERS_PER_BUCKET || possible.toLong() * MEMBER_BYTES_UPPER > MAX_BUCKET_BYTES) { refused.add(id); continue }
-            val place = places[id]
-            writes.add(BucketWrite(id, place?.track, place?.unit, members))
+            val place = places.getValue(id)
+            writes.add(BucketWrite(id, place.track, place.unit, members))
         }
         return BucketPlan(writes, refused, unplaced, invalid)
     }
