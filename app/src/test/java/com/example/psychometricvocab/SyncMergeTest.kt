@@ -133,4 +133,45 @@ class SyncMergeTest {
         assertTrue(plan.uploads.isEmpty())
         assertTrue(plan.localUpdates.isEmpty())
     }
+
+    // ---- the 22 Nov 2026 incident ----
+
+    @Test
+    fun firstSignInNeverStampsLegacyProgressThatTheCloudAlreadyHasARecordFor() {
+        // An old copy of the data: real progress but updatedAt = 0 (it predates the column).
+        // The cloud holds the owner's real, newer progress for the same words. The stamp used to
+        // make the old copy "now", beat the cloud, and overwrite it. Now the legacy copy is older.
+        val legacy = listOf(
+            word(1, "a", srs = 1f, correct = 2, updatedAt = 0),
+            word(2, "b", srs = 2f, correct = 4, known = true, updatedAt = 0)
+        )
+        val cloud = listOf(
+            record("a", srs = 5f, updatedAt = 1_795_000_000_000L, correct = 20, known = true, interval = 40),
+            record("b", srs = 6f, updatedAt = 1_795_100_000_000L, correct = 30, known = true, interval = 60)
+        )
+        val plan = SyncMerge.reconcile(legacy, cloud, isFirstSignIn = true, now = now)
+        assertTrue("nothing goes up over the real progress", plan.uploads.isEmpty())
+        assertEquals(listOf(20, 30), plan.localUpdates.map { it.correctCount })
+        assertEquals(listOf(1_795_000_000_000L, 1_795_100_000_000L), plan.localUpdates.map { it.updatedAt })
+    }
+
+    @Test
+    fun firstSignInStillStampsLegacyProgressForWordsTheCloudHasNothingFor() {
+        val legacy = word(1, "a", srs = 2f, correct = 3, known = true, updatedAt = 0)
+        val cloud = listOf(record("other", srs = 1f, updatedAt = 1_795_000_000_000L))
+        val plan = SyncMerge.reconcile(listOf(legacy), cloud, isFirstSignIn = true, now = now)
+        assertEquals(now, plan.uploads.single().updatedAt)
+    }
+
+    @Test
+    fun aNewerRemoteWithTheSameProgressLeavesTheLocalTimestampAlone() {
+        // After the repair the cloud holds this phone's own state under a newer stamp; taking that
+        // stamp would make every word look just answered to the word selection.
+        val local = word(1, "a", srs = 4f, correct = 9, wrong = 2, known = true, interval = 14, updatedAt = 1_000)
+            .copy(nextReviewDate = 1_700_000_000_000L) // what record() carries
+        val remote = record("a", srs = 4f, updatedAt = 2_000, correct = 9, wrong = 2, known = true, interval = 14)
+        val plan = SyncMerge.reconcile(listOf(local), listOf(remote), isFirstSignIn = false, now = now)
+        assertTrue(plan.localUpdates.isEmpty())
+        assertTrue(plan.uploads.isEmpty())
+    }
 }

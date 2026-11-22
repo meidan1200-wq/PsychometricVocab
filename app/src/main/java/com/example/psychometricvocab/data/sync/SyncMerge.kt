@@ -58,6 +58,12 @@ object SyncMerge {
     fun shouldApplyRemote(localUpdatedAt: Long, remoteUpdatedAt: Long): Boolean =
         remoteUpdatedAt > localUpdatedAt
 
+    /** True if the word and the record carry the same SRS state (timestamps aside). */
+    fun sameProgress(w: Word, r: SyncRecord): Boolean =
+        w.srsScore == r.srsScore && w.easeFactor == r.easeFactor && w.interval == r.interval &&
+            w.nextReviewDate == r.nextReviewDate && w.correctCount == r.correctCount &&
+            w.wrongCount == r.wrongCount && w.isKnown == r.isKnown
+
     /** What one sync pass should do: rewrite these local rows, upload these records. */
     data class Plan(val localUpdates: List<Word>, val uploads: List<SyncRecord>)
 
@@ -73,7 +79,8 @@ object SyncMerge {
      * [isFirstSignIn]: the account's first-ever sync from this phone. Progress that predates the
      * v5 `updatedAt` column (progress, but updatedAt = 0) is stamped with [now] first, so it is
      * uploadable and a fresh install restoring from the cloud can later see it as "newer than
-     * default". This is the only place a local timestamp is invented.
+     * default". This is the only place a local timestamp is invented, and only for a word with NO
+     * remote record: when the cloud has one, the legacy copy counts as older (updatedAt = 0).
      */
     fun reconcile(local: List<Word>, remote: List<SyncRecord>, isFirstSignIn: Boolean, now: Long): Plan {
         val remoteById = HashMap<String, SyncRecord>(remote.size * 2)
@@ -83,19 +90,28 @@ object SyncMerge {
         for (w in local) {
             val id = w.stableId ?: continue
             var cur = w
-            if (isFirstSignIn && cur.updatedAt == 0L && hasProgress(cur)) cur = cur.copy(updatedAt = now)
             val r = remoteById[id]
+            // The stamp invents a timestamp, so it is only for progress the cloud knows nothing
+            // about. If the cloud HAS a record for this word, the legacy copy (updatedAt = 0) is
+            // simply older and the normal rules decide. (Stamping it anyway let an old copy beat
+            // the owner's real cloud progress and overwrite it: the 22 Nov 2026 incident.)
+            if (isFirstSignIn && cur.updatedAt == 0L && hasProgress(cur) && r == null) cur = cur.copy(updatedAt = now)
             if (r != null && shouldApplyRemote(cur.updatedAt, r.updatedAt)) {
-                cur = cur.copy(
-                    srsScore = r.srsScore,
-                    easeFactor = r.easeFactor,
-                    interval = r.interval,
-                    nextReviewDate = r.nextReviewDate,
-                    correctCount = r.correctCount,
-                    wrongCount = r.wrongCount,
-                    isKnown = r.isKnown,
-                    updatedAt = r.updatedAt
-                )
+                // The same progress under a newer stamp has nothing to take: keeping the phone's
+                // own timestamp keeps "when did I last answer this word" true (the word selection
+                // reads it), instead of making every such word look just answered.
+                if (!sameProgress(cur, r)) {
+                    cur = cur.copy(
+                        srsScore = r.srsScore,
+                        easeFactor = r.easeFactor,
+                        interval = r.interval,
+                        nextReviewDate = r.nextReviewDate,
+                        correctCount = r.correctCount,
+                        wrongCount = r.wrongCount,
+                        isKnown = r.isKnown,
+                        updatedAt = r.updatedAt
+                    )
+                }
             } else if (hasProgress(cur) && cur.updatedAt > 0L && (r == null || cur.updatedAt > r.updatedAt)) {
                 toRecord(cur)?.let { uploads.add(it) }
             }
