@@ -26,6 +26,11 @@ import java.nio.file.Files
  * typed confirmation and a dry run first, the backup is saved before anything is written, and the
  * layout is only set after a clean read-back.
  */
+// Real stableIds are 12 hex characters; the member-key rule of the v2 layout rejects anything else.
+private const val ID_A = "a00000000001"
+private const val ID_B = "b00000000002"
+private const val ID_C = "c00000000003"
+
 class VocabMigrationTest {
     private class FakeCloud(val v1Words: List<SyncRecord>, val v1Days: Map<String, Int>) : CloudSync {
         var layout: Layout? = Layout.V1
@@ -72,9 +77,9 @@ class VocabMigrationTest {
     private fun word(id: Int, stableId: String, track: String, unit: Int) =
         Word(id = id, track = track, word = "w$id", definition = "d$id", unit = unit, stableId = stableId)
 
-    private val words = listOf(word(1, "a", "english", 1), word(2, "b", "english", 1), word(3, "c", "hebrew", 2))
+    private val words = listOf(word(1, ID_A, "english", 1), word(2, ID_B, "english", 1), word(3, ID_C, "hebrew", 2))
 
-    private fun cloud() = FakeCloud(listOf(record("a"), record("b"), record("c")), mapOf("2026-11-01" to 5, "2026-11-22" to 40))
+    private fun cloud() = FakeCloud(listOf(record(ID_A), record(ID_B), record(ID_C)), mapOf("2026-11-01" to 5, "2026-11-22" to 40))
 
     private fun tool(cloud: FakeCloud, dir: File) = VocabMigration(cloud, { words }, dir, { "dev1" })
 
@@ -126,7 +131,7 @@ class VocabMigrationTest {
         assertEquals("the layout is NOT set by the write", 0, c.layoutEntries.size)
         val backup = File(dir, "backups").listFiles()!!.single()
         val text = backup.readText()
-        assertTrue(listOf("a", "b", "c").all { text.contains("\"stableId\":\"$it\"") })
+        assertTrue(listOf(ID_A, ID_B, ID_C).all { text.contains("\"stableId\":\"$it\"") })
         assertTrue(text.contains("\"2026-11-22\":40"))
     }
 
@@ -167,7 +172,7 @@ class VocabMigrationTest {
         val t = tool(c, tempDir())
         t.dryRun()
         t.applyBesideV1(VocabMigration.CONFIRM_WRITE)
-        c.v2Words["a"] = record("a", updatedAt = 99_999)   // someone changed v2 in between
+        c.v2Words[ID_A] = record(ID_A, updatedAt = 99_999)   // someone changed v2 in between
         val report = t.setDual(VocabMigration.CONFIRM_DUAL)
         assertFalse(report.ok)
         assertEquals(0, c.layoutEntries.size)

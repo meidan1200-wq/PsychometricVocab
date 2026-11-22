@@ -56,9 +56,10 @@ class VocabMigration(
         sb.appendLine("Words this phone can't place: ${plan.unplaced.size}" + if (plan.unplaced.isNotEmpty()) " (they would go to ${CloudLayout.UNPLACED_BUCKET})" else "")
         sb.appendLine("Member-key collisions: ${plan.keyCollisions.size}" + plan.keyCollisions.take(5).joinToString("") { "\n  $it" })
         sb.appendLine("Buckets over the size guard: ${plan.refused.size}" + if (plan.refused.isNotEmpty()) " ${plan.refused}" else "")
+        sb.appendLine("Words with an invalid member key: ${plan.invalid.size}" + plan.invalid.take(5).joinToString("") { "\n  $it" })
         sb.appendLine("v2 as it is now: ${v2.words.size} word(s), ${v2.activity.size} day(s) (${v2.docsRead} doc(s) read)")
         sb.appendLine("Difference v1 vs v2 now: ${diff.missingInV2.size} missing in v2, ${diff.extraInV2.size} extra in v2, ${diff.different.size} different, ${diff.daysDifferent.size} day(s) different")
-        sb.append(if (plan.safeToWrite) "Safe to write beside v1." else "NOT safe to write: fix the collisions / oversized buckets first.")
+        sb.append(if (plan.safeToWrite) "Safe to write beside v1." else "NOT safe to write: fix the collisions, invalid keys or oversized buckets first.")
         return Report(plan.safeToWrite, sb.toString())
     }
 

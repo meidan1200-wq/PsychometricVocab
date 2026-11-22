@@ -256,17 +256,23 @@ class FirebaseCloudSync private constructor(private val appContext: Context) : C
         val uid = auth.currentUser?.uid ?: return
         if (writes.isEmpty()) return
         val col = wordsCollection(uid)
-        // A merge of the nested map: only these members are written, the rest of the bucket is
-        // untouched, and a member never half-merges with an older copy of itself (each is written whole).
+        // mergeFields with one dotted path per member (w.<key>): exactly these members are replaced,
+        // each WHOLE (an old sub-field cannot be left behind), and the rest of the bucket is untouched.
+        // The key starts with a letter and holds only [0-9a-f_], so the dotted path is valid. `s` is
+        // always in the mask: the rules require it to equal the server time on every write, and other
+        // devices' cursor queries only see a write that moved it.
         writes.chunked(400).forEach { chunk ->
             val batch = db.batch()
             chunk.forEach { w ->
                 val doc = HashMap<String, Any>()
+                val mask = ArrayList<String>()
                 doc["s"] = FieldValue.serverTimestamp()
-                w.track?.let { doc["t"] = it }
-                w.unit?.let { doc["u"] = it }
+                mask.add("s")
+                w.track?.let { doc["t"] = it; mask.add("t") }
+                w.unit?.let { doc["u"] = it; mask.add("u") }
                 doc["w"] = w.members
-                batch.set(col.document(w.id), doc, SetOptions.merge())
+                w.members.keys.forEach { mask.add("w.$it") }
+                batch.set(col.document(w.id), doc, SetOptions.mergeFields(mask))
             }
             withTimeoutOrNull(PUSH_WAIT_MS) { batch.commit().await() }
         }

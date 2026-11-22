@@ -38,6 +38,14 @@ object CloudLayout {
     /** A bucket document larger than this is refused and its data stays local. */
     const val MAX_BUCKET_BYTES = 700 * 1024
 
+    /** firestore.rules caps a bucket at this many members; a bucket that could pass it is refused. */
+    const val MAX_MEMBERS_PER_BUCKET = 1500
+
+    /** The rules cannot check the keys of `w` (no loops), so the client does: a letter, then hex and underscores. */
+    private val MEMBER_KEY = Regex("^w[0-9a-f_]{12,24}$")
+
+    fun isValidMemberKey(key: String) = MEMBER_KEY.matches(key)
+
     /** The schema number a device reports for itself in users/{uid} devices. */
     const val SCHEMA = 2
 
@@ -110,7 +118,17 @@ object CloudLayout {
     /** One bucket's merge: only these members are written (plus s, t, u by the cloud layer). */
     data class BucketWrite(val id: String, val track: String?, val unit: Int?, val members: Map<String, Map<String, Any>>)
 
-    data class BucketPlan(val writes: List<BucketWrite>, val refused: List<String>, val unplaced: List<String>)
+    /**
+     * [refused]: bucket ids not written (over the size or member guard). [unplaced]: stableIds sent to
+     * the catch-all bucket. [invalid]: stableIds whose member key breaks the key rule; they are not
+     * written and stay local.
+     */
+    data class BucketPlan(
+        val writes: List<BucketWrite>,
+        val refused: List<String>,
+        val unplaced: List<String>,
+        val invalid: List<String> = emptyList()
+    )
 
     /**
      * Groups [records] into per-bucket merges. A word [placeOf] can't place goes to
@@ -126,7 +144,9 @@ object CloudLayout {
         val byBucket = LinkedHashMap<String, MutableMap<String, Map<String, Any>>>()
         val places = HashMap<String, Place?>()
         val unplaced = ArrayList<String>()
+        val invalid = ArrayList<String>()
         for (r in records) {
+            if (!isValidMemberKey(memberKey(r.stableId))) { invalid.add(r.stableId); continue }
             val place = placeOf[r.stableId]
             val id = if (place == null) { unplaced.add(r.stableId); UNPLACED_BUCKET } else bucketId(place)
             places[id] = place
@@ -136,11 +156,11 @@ object CloudLayout {
         val writes = ArrayList<BucketWrite>()
         for ((id, members) in byBucket) {
             val possible = maxOf(capacity[id] ?: 0, members.size)
-            if (possible.toLong() * MEMBER_BYTES_UPPER > MAX_BUCKET_BYTES) { refused.add(id); continue }
+            if (possible > MAX_MEMBERS_PER_BUCKET || possible.toLong() * MEMBER_BYTES_UPPER > MAX_BUCKET_BYTES) { refused.add(id); continue }
             val place = places[id]
             writes.add(BucketWrite(id, place?.track, place?.unit, members))
         }
-        return BucketPlan(writes, refused, unplaced)
+        return BucketPlan(writes, refused, unplaced, invalid)
     }
 
     /** The conservative size of a bucket document holding [members] words. */

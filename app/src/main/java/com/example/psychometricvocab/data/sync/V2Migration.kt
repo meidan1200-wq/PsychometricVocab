@@ -23,10 +23,12 @@ object V2Migration {
         /** Two stableIds that would share one member key (expected none). */
         val keyCollisions: List<String>,
         /** Buckets over the size guard (expected none). */
-        val refused: List<String>
+        val refused: List<String>,
+        /** Words whose member key breaks the rule the cloud can not check (expected none). */
+        val invalid: List<String> = emptyList()
     ) {
         /** True if the plan can be written as it stands. */
-        val safeToWrite get() = keyCollisions.isEmpty() && refused.isEmpty()
+        val safeToWrite get() = keyCollisions.isEmpty() && refused.isEmpty() && invalid.isEmpty()
     }
 
     fun plan(
@@ -54,7 +56,8 @@ object V2Migration {
             stats = stats,
             unplaced = bucketPlan.unplaced,
             keyCollisions = collisions,
-            refused = bucketPlan.refused
+            refused = bucketPlan.refused,
+            invalid = bucketPlan.invalid
         )
     }
 

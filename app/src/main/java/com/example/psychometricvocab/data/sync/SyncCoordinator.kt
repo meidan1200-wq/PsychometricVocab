@@ -123,6 +123,7 @@ class SyncCoordinator private constructor(context: Context) {
         val words = dao.getSyncableWords()
         val plan = CloudLayout.planWrites(records, CloudLayout.placement(words), CloudLayout.capacities(words))
         if (plan.refused.isNotEmpty()) Log.e(TAG, "v2: bucket(s) over the size guard, nothing written for them, data stays local: ${plan.refused}")
+        if (plan.invalid.isNotEmpty()) Log.e(TAG, "v2: ${plan.invalid.size} word(s) with an invalid member key, not written, data stays local: ${plan.invalid.take(5)}")
         if (plan.unplaced.isNotEmpty()) Log.w(TAG, "v2: ${plan.unplaced.size} word(s) not in this phone's list, written to ${CloudLayout.UNPLACED_BUCKET}")
         cloud.pushBuckets(plan.writes)
     }
