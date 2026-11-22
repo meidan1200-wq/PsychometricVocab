@@ -29,6 +29,7 @@ Owner decisions are in `agents/DECISIONS.md`; open work is in `agents/TASKS.md`.
 - Signing out, resets and sync never delete cloud data. A remote record never overwrites local data with older or default values.
 - Releases are built on this PC only (the debug keystore signs every release). Only the Manager merges to the working branch or `master`, bumps versions, or touches `update.json`.
 - `app/google-services.json` stays untracked (the repo is public).
+- **Before touching sync, Firestore, or the owner's phone or emulator, read `docs/sync-safety.md`** (the 2026-11-22 incident and its hard rules). Never sign a device holding an older copy of his data in to his account.
 
 ## Say what you did not check
 

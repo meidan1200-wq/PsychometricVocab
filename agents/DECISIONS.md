@@ -82,3 +82,9 @@ Also adopted from that team: report once, when finished (no progress pings or ac
 
 ## 2026-09-22 — Team restructure
 A local Manager runs the team; the cloud agent becomes Cloud QA & Docs; IT keeps the local repo in sync and tests on the emulator. Decided by the owner.
+
+## 2026-11-22 Sync incident and repair (owner approved "go ahead with the plan")
+- Emulator test sign-in uploaded ~1,500 stale Oct-16 records (legacy updatedAt=0 stamped "now" on first sign-in) over the owner's cloud progress. Phone untouched (not opened).
+- Fix + one-shot repair released as v1.1.10 (fix/sync-repair a8c8e1b). The phone replaces every cloud record dated 2026-11-22 UTC with its own state, once per account; guard skips on a device without real progress.
+- The emulator stays OFFLINE (it holds the stale copy). Never sign it in again until it's restored from a fresh phone export.
+- opt/incremental-sync (b948e09) is on hold until the repair is confirmed; it must be rebased onto the repair.
